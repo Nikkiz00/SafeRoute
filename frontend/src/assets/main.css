@@ -1,0 +1,120 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  *, *::before, *::after {
+    transition: background-color 200ms ease, border-color 200ms ease, color 150ms ease;
+  }
+
+  .no-theme-transition {
+    transition: none !important;
+  }
+
+  body {
+    @apply font-sans text-text-primary dark:text-text-dark-primary antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+
+  :focus-visible {
+    outline: 2px solid theme('colors.brand-blue');
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+}
+
+@layer utilities {
+  .tap-highlight-none {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border-width: 0;
+  }
+}
+
+/* Page transitions */
+.page-enter-active { transition: opacity 150ms ease-out, transform 150ms ease-out; }
+.page-leave-active { transition: opacity 100ms ease-in, transform 100ms ease-in; }
+.page-enter-from   { opacity: 0; transform: translateY(8px); }
+.page-leave-to     { opacity: 0; transform: translateY(-4px); }
+
+/* Bottom sheet transitions */
+.sheet-enter-active { transition: transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1); }
+.sheet-leave-active { transition: transform 200ms ease-in; }
+.sheet-enter-from   { transform: translateY(100%); }
+.sheet-leave-to     { transform: translateY(100%); }
+
+/* Backdrop transitions */
+.backdrop-enter-active { transition: opacity 300ms ease-out; }
+.backdrop-leave-active { transition: opacity 200ms ease-in; }
+.backdrop-enter-from   { opacity: 0; }
+.backdrop-leave-to     { opacity: 0; }
+
+/* Onboarding step transitions (forward) */
+.step-forward-enter-active { transition: opacity 250ms ease-out, transform 250ms ease-out; }
+.step-forward-leave-active { transition: opacity 250ms ease-in, transform 250ms ease-in; }
+.step-forward-enter-from   { opacity: 0; transform: translateX(32px); }
+.step-forward-leave-to     { opacity: 0; transform: translateX(-32px); }
+
+/* Onboarding step transitions (backward) */
+.step-back-enter-active { transition: opacity 250ms ease-out, transform 250ms ease-out; }
+.step-back-leave-active { transition: opacity 250ms ease-in, transform 250ms ease-in; }
+.step-back-enter-from   { opacity: 0; transform: translateX(-32px); }
+.step-back-leave-to     { opacity: 0; transform: translateX(32px); }
+
+/* Shake animation for form errors */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  20%       { transform: translateX(-6px); }
+  40%       { transform: translateX(6px); }
+  60%       { transform: translateX(-4px); }
+  80%       { transform: translateX(4px); }
+}
+
+.animate-shake { animation: shake 300ms ease-out; }
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .sheet-enter-active,
+  .sheet-leave-active,
+  .page-enter-active,
+  .page-leave-active {
+    transition: opacity 150ms ease !important;
+  }
+}
+
+/* Fade transitions (used by SOSFlow overlay) */
+.fade-enter-active { transition: opacity 0.2s ease; }
+.fade-leave-active { transition: opacity 0.2s ease; }
+.fade-enter-from   { opacity: 0; }
+.fade-leave-to     { opacity: 0; }
+
+/* Leaflet overrides */
+.leaflet-container {
+  font-family: inherit;
+}
+
+.leaflet-control-attribution {
+  font-size: 10px;
+}

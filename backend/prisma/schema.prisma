@@ -1,0 +1,315 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+  STAFF
+  FAMILY
+}
+
+enum UserPlan {
+  FREE
+  PREMIUM
+}
+
+enum AuthProvider {
+  email
+  google
+  apple
+}
+
+model User {
+  id                  String       @id @default(cuid())
+  name                String
+  email               String       @unique
+  passwordHash        String?
+  provider            AuthProvider @default(email)
+  role                UserRole     @default(USER)
+  plan                UserPlan     @default(FREE)
+  onboardingCompleted Boolean      @default(false)
+  createdAt           DateTime     @default(now())
+  updatedAt           DateTime     @updatedAt
+  deletedAt           DateTime?
+  emailVerified       Boolean   @default(false)
+  emailVerifiedAt     DateTime?
+
+  refreshTokens           RefreshToken[]
+  emergencyContacts       EmergencyContact[]
+  routeSessions           RouteSession[]
+  zoneFeedback            ZoneFeedback[]
+  reports                 Report[]
+  sosAlerts               SOSAlert[]
+  notificationLogs        NotificationLog[]
+  adminAuditLogs          AdminAuditLog[]      @relation("AdminActions")
+  liveTrackingSessions    LiveTrackingSession[]
+  emailVerificationTokens EmailVerificationToken[]
+
+  @@index([deletedAt])
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model EmergencyContact {
+  id            String   @id @default(cuid())
+  userId        String
+  name          String
+  phone         String?
+  email         String?
+  isPrimary     Boolean  @default(false)
+  notifiedOnAdd Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("emergency_contacts")
+}
+
+model City {
+  id       String  @id @default(cuid())
+  name     String
+  province String?
+  region   String?
+  country  String  @default("IT")
+  isActive Boolean @default(true)
+
+  zones Zone[]
+
+  @@map("cities")
+}
+
+model Zone {
+  id              String   @id @default(cuid())
+  cityId          String
+  name            String
+  type            String   @default("district")
+  geometryJson    Json
+  isServiceActive Boolean  @default(false)
+  safetyScore     Float?
+  updatedAt       DateTime @updatedAt
+
+  city               City                @relation(fields: [cityId], references: [id])
+  feedback           ZoneFeedback[]
+  reports            Report[]
+  routeZoneCrossings RouteZoneCrossing[]
+
+  @@map("zones")
+}
+
+model RouteSession {
+  id                     String    @id @default(cuid())
+  userId                 String
+  status                 String    @default("active")
+  startLat               Float
+  startLng               Float
+  endLat                 Float?
+  endLng                 Float?
+  startedAt              DateTime  @default(now())
+  endedAt                DateTime?
+  trackingToken          String    @unique @default(cuid())
+  trackingTokenExpiresAt DateTime
+  shareEnabled           Boolean   @default(true)
+  destinationName        String?
+
+  user               User                @relation(fields: [userId], references: [id])
+  locationPings      LocationPing[]
+  zoneCrossings      RouteZoneCrossing[]
+  feedback           ZoneFeedback[]
+  sosAlerts          SOSAlert[]
+  liveTracking       LiveTrackingSession?
+
+  @@index([userId, status])
+  @@index([trackingToken])
+  @@map("route_sessions")
+}
+
+model RouteZoneCrossing {
+  id             String       @id @default(cuid())
+  routeSessionId String
+  zoneId         String
+  enteredAt      DateTime     @default(now())
+  exitedAt       DateTime?
+
+  routeSession RouteSession @relation(fields: [routeSessionId], references: [id], onDelete: Cascade)
+  zone         Zone         @relation(fields: [zoneId], references: [id])
+
+  @@map("route_zone_crossings")
+}
+
+model LocationPing {
+  id             String   @id @default(cuid())
+  routeSessionId String
+  lat            Float
+  lng            Float
+  accuracy       Float?
+  createdAt      DateTime @default(now())
+
+  routeSession RouteSession @relation(fields: [routeSessionId], references: [id], onDelete: Cascade)
+
+  @@index([routeSessionId, createdAt])
+  @@map("location_pings")
+}
+
+model LiveTrackingSession {
+  id             String    @id @default(cuid())
+  userId         String
+  routeSessionId String?   @unique
+  trackingToken  String    @unique
+  isActive       Boolean   @default(true)
+  startedAt      DateTime  @default(now())
+  expiresAt      DateTime
+  lastPingAt     DateTime?
+
+  user         User          @relation(fields: [userId], references: [id])
+  routeSession RouteSession? @relation(fields: [routeSessionId], references: [id])
+
+  @@map("live_tracking_sessions")
+}
+
+model ZoneFeedback {
+  id             String    @id @default(cuid())
+  userId         String
+  zoneId         String
+  routeSessionId String?
+  rating         Int
+  note           String?   @db.VarChar(500)
+  createdAt      DateTime  @default(now())
+
+  user         User          @relation(fields: [userId], references: [id])
+  zone         Zone          @relation(fields: [zoneId], references: [id])
+  routeSession RouteSession? @relation(fields: [routeSessionId], references: [id])
+
+  @@index([userId, zoneId, createdAt])
+  @@map("safety_feedback")
+}
+
+model Report {
+  id          String    @id @default(cuid())
+  userId      String?
+  zoneId      String
+  category    String
+  description String?   @db.VarChar(1000)
+  status      String    @default("pending")
+  createdAt   DateTime  @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+  zone Zone  @relation(fields: [zoneId], references: [id])
+
+  @@index([zoneId, status])
+  @@map("reports")
+}
+
+model SOSAlert {
+  id               String    @id @default(cuid())
+  userId           String
+  routeSessionId   String?
+  lat              Float
+  lng              Float
+  message          String?
+  status           String    @default("active")
+  createdAt        DateTime  @default(now())
+  resolvedAt       DateTime?
+  resolvedFeedback String?
+
+  user             User           @relation(fields: [userId], references: [id])
+  routeSession     RouteSession?  @relation(fields: [routeSessionId], references: [id])
+  followup         SOSFollowup?
+  notificationLogs NotificationLog[]
+
+  @@index([status, createdAt])
+  @@map("sos_events")
+}
+
+model SOSFollowup {
+  id          String   @id @default(cuid())
+  sosAlertId  String   @unique
+  response    String
+  respondedAt DateTime @default(now())
+  notes       String?
+
+  sosAlert SOSAlert @relation(fields: [sosAlertId], references: [id])
+
+  @@map("sos_followups")
+}
+
+model NotificationLog {
+  id           String   @id @default(cuid())
+  userId       String
+  sosAlertId   String?
+  channel      String
+  recipient    String
+  status       String
+  provider     String
+  errorMessage String?
+  createdAt    DateTime @default(now())
+
+  user     User      @relation(fields: [userId], references: [id])
+  sosAlert SOSAlert? @relation(fields: [sosAlertId], references: [id])
+
+  @@map("notification_logs")
+}
+
+model AdminAuditLog {
+  id            String   @id @default(cuid())
+  adminId       String
+  action        String
+  targetType    String
+  targetId      String
+  previousValue Json?
+  newValue      Json?
+  createdAt     DateTime @default(now())
+
+  admin User @relation("AdminActions", fields: [adminId], references: [id])
+
+  @@index([adminId, createdAt])
+  @@map("audit_logs")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_verification_tokens")
+}
+
+model AppSetting {
+  key       String @id
+  valueJson Json
+
+  @@map("admin_settings")
+}
+
+model AISetting {
+  id        String   @id @default(cuid())
+  provider  String   @default("none")
+  model     String?
+  baseUrl   String?
+  isEnabled Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  @@map("ai_settings")
+}

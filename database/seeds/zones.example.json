@@ -1,0 +1,42 @@
+{
+  "country": "IT",
+  "cities": [
+    {
+      "name": "Torino",
+      "province": "TO",
+      "region": "Piemonte",
+      "zones": [
+        {
+          "name": "Centro",
+          "type": "district",
+          "safetyScore": 75,
+          "isServiceActive": true
+        },
+        {
+          "name": "Crocetta",
+          "type": "district",
+          "safetyScore": 82,
+          "isServiceActive": true
+        },
+        {
+          "name": "San Salvario",
+          "type": "district",
+          "safetyScore": 58,
+          "isServiceActive": true
+        },
+        {
+          "name": "Aurora",
+          "type": "district",
+          "safetyScore": 45,
+          "isServiceActive": true
+        },
+        {
+          "name": "Comune piccolo demo",
+          "type": "single_area",
+          "safetyScore": null,
+          "isServiceActive": false
+        }
+      ]
+    }
+  ]
+}

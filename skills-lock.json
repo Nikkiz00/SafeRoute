@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "web-accessibility": {
+      "source": "akillness/oh-my-skills",
+      "sourceType": "github",
+      "skillPath": ".agent-skills/web-accessibility/SKILL.md",
+      "computedHash": "dd5695d72db9196cd76e0f300b8b3ebee1f3d307c3c5b69c41166865fdd32b23"
+    }
+  }
+}
