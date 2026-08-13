@@ -90,7 +90,7 @@ async function handleDelete(id: string) {
       <div class="sticky top-0 bg-surface-base dark:bg-surface-dark border-b border-border-light dark:border-border-dark z-nav px-4 h-16 flex items-center gap-4">
         <button
           @click="router.push('/map')"
-          class="md:hidden p-2 rounded-xl text-text-secondary dark:text-text-dark-secondary hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+          class="md:hidden p-3 rounded-xl text-text-secondary dark:text-text-dark-secondary hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           aria-label="Torna alla mappa"
         >
           <ArrowLeft :size="20" />

@@ -2,11 +2,12 @@ import { ref, onUnmounted } from 'vue'
 import { useRouteStore } from '@/stores/route'
 import { updateLocation } from '@/api/routes'
 
-const UPDATE_INTERVAL_MS = 15_000 // 15 seconds minimum between API updates
-const GPS_ACCURACY_THRESHOLD = 50  // ignore positions with accuracy > 50m (was 35)
-const GPS_MIN_DISTANCE_M = 10      // ignore updates if moved < 10m (was 8)
-const GPS_ALPHA = 0.15             // smoothing factor: more stable, less reactive (was 0.25)
-const GPS_VERY_POOR_THRESHOLD = 100 // above 100m = GPS almost useless
+const UPDATE_INTERVAL_MS = 15_000        // 15 seconds minimum between API updates
+const VISUAL_UPDATE_INTERVAL_MS = 3_000  // max visual marker refresh rate between API calls
+const GPS_ACCURACY_THRESHOLD = 50        // ignore positions with accuracy > 50m
+const GPS_MIN_DISTANCE_M = 12            // ignore updates if moved < 12m (was 10 — rejects more urban noise)
+const GPS_ALPHA = 0.10                   // smoothing factor — 10% toward raw (was 0.15 — less drift)
+const GPS_VERY_POOR_THRESHOLD = 100      // above 100m = GPS almost useless
 
 // Module-level state: shared across all useRouteTracker instances.
 // Assumption: only one tracker is active at any given time (single session).
@@ -58,6 +59,7 @@ export function useRouteTracker() {
   const routeStore = useRouteStore()
   const watchId = ref<number | null>(null)
   const lastUpdateTime = ref(0)
+  const lastVisualUpdateTime = ref(0)
   const currentAccuracy = ref<number | null>(null)
   const isGpsVeryPoor = ref(false)
   const isSupported = typeof navigator !== 'undefined' && 'geolocation' in navigator
@@ -96,11 +98,16 @@ export function useRouteTracker() {
 
         const now = Date.now()
         if (now - lastUpdateTime.value < UPDATE_INTERVAL_MS) {
-          // Still update local position for live marker, skip API call
-          routeStore.setLastPosition({ lat: smoothed.lat, lng: smoothed.lng, accuracy })
+          // Within API interval — only refresh visual marker if enough time has passed.
+          // Throttling here prevents the map marker from jumping on every GPS fix (every 2-5s).
+          if (now - lastVisualUpdateTime.value >= VISUAL_UPDATE_INTERVAL_MS) {
+            routeStore.setLastPosition({ lat: smoothed.lat, lng: smoothed.lng, accuracy })
+            lastVisualUpdateTime.value = now
+          }
           return
         }
         lastUpdateTime.value = now
+        lastVisualUpdateTime.value = now
 
         const sessionId = routeStore.activeSession?.id
         if (!sessionId) return
@@ -116,18 +123,16 @@ export function useRouteTracker() {
         }
       },
       (err) => {
-        const errorMessages: Record<number, string> = {
-          1: 'Permesso posizione negato dall\'utente',
-          2: 'Posizione non disponibile (segnale GPS debole)',
-          3: 'Timeout rilevamento posizione',
-        }
-        const msg = errorMessages[err.code] ?? err.message
-        console.warn('[tracker] geolocation error:', msg, `(code: ${err.code})`)
         if (err.code === 1) {
+          console.warn('[gps] geolocation denied — user rejected permission')
           routeStore.setError('Permesso posizione negato. Abilita la geolocalizzazione nelle impostazioni del browser.')
-        }
-        if (err.code === 3) {
-          console.warn('[gps] geolocation timeout — GPS may be unavailable or blocked')
+        } else if (err.code === 2) {
+          console.warn('[gps] geolocation unavailable — GPS signal lost or hardware error')
+          routeStore.setError('Segnale GPS non disponibile. Verifica che il GPS del dispositivo sia attivo.')
+        } else if (err.code === 3) {
+          console.warn('[gps] geolocation timeout — GPS fix taking too long or signal blocked')
+        } else {
+          console.warn('[gps] geolocation error:', err.message, `(code: ${err.code})`)
         }
       },
       { enableHighAccuracy: true, maximumAge: 5000, timeout: 10000 },
@@ -157,6 +162,7 @@ export function useRouteTracker() {
     _smoothedLat = null
     _smoothedLng = null
     lastUpdateTime.value = 0
+    lastVisualUpdateTime.value = 0
     currentAccuracy.value = null
     isGpsVeryPoor.value = false
   }

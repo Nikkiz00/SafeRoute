@@ -56,7 +56,7 @@ function handleReportSubmitted() {
   <Transition name="sheet">
     <div
       v-if="visible && zone"
-      class="fixed bottom-0 left-0 right-0 z-sheet md:left-64"
+      class="fixed bottom-0 left-0 right-0 z-modal md:left-64"
       role="dialog"
       aria-modal="true"
       :aria-label="`Dettagli zona ${zone.name}`"
@@ -80,19 +80,19 @@ function handleReportSubmitted() {
           </div>
           <button
             @click="emit('close')"
-            class="w-8 h-8 flex items-center justify-center rounded-full text-text-secondary dark:text-text-dark-secondary hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            class="w-11 h-11 flex items-center justify-center rounded-full text-text-secondary dark:text-text-dark-secondary hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             aria-label="Chiudi pannello"
           >
-            <X :size="16" />
+            <X :size="18" />
           </button>
         </div>
 
         <!-- Zone name + badge -->
-        <div class="flex items-center justify-between mb-1">
-          <h2 class="text-xl font-display font-semibold text-text-primary dark:text-text-dark-primary">
+        <div class="flex items-start justify-between gap-2 mb-1">
+          <h2 class="text-xl font-display font-semibold text-text-primary dark:text-text-dark-primary min-w-0 line-clamp-2">
             {{ zone.name }}
           </h2>
-          <StatusBadge :level="zone.level" />
+          <StatusBadge :level="zone.level" class="shrink-0 mt-0.5" />
         </div>
         <p class="text-sm text-text-secondary dark:text-text-dark-secondary mb-4">
           {{ zone.cityName }}<span v-if="zone.region"> · {{ zone.region }}</span>

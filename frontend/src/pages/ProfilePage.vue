@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   User as UserIcon, Mail, Calendar, Crown, ArrowLeft, Pencil, Check, X,
@@ -122,8 +122,8 @@ async function handleChangeEmail() {
   sectionError.value.email = ''
   try {
     const { user: updated } = await changeEmail(changeEmailForm.value)
-    auth.updateUser({ email: updated.email, emailVerified: updated.emailVerified })
-    sectionSuccess.value.email = 'Email aggiornata. Controlla la tua casella per verificarla.'
+    auth.updateUser({ pendingEmail: updated.pendingEmail })
+    sectionSuccess.value.email = `Email di verifica inviata a ${changeEmailForm.value.newEmail}. Il cambio sarà definitivo dopo la verifica.`
     changeEmailForm.value = { newEmail: '', password: '' }
     toggleSection(null)
   } catch (err) {
@@ -132,6 +132,19 @@ async function handleChangeEmail() {
     isSavingSection.value.email = false
   }
 }
+
+// Password strength
+const passwordStrength = computed(() => {
+  const p = changePasswordForm.value.newPassword
+  if (!p) return null
+  const checks = {
+    length: p.length >= 10,
+    upper: /[A-Z]/.test(p),
+    digit: /[0-9]/.test(p),
+  }
+  const passed = Object.values(checks).filter(Boolean).length
+  return { checks, score: passed, label: ['Debole', 'Debole', 'Discreta', 'Forte'][passed] ?? 'Forte' }
+})
 
 // Change password
 const changePasswordForm = ref({ currentPassword: '', newPassword: '', confirmPassword: '' })
@@ -146,6 +159,14 @@ async function handleChangePassword() {
   }
   if (changePasswordForm.value.newPassword.length < 10) {
     sectionError.value.password = 'La password deve contenere almeno 10 caratteri'
+    return
+  }
+  if (!/[A-Z]/.test(changePasswordForm.value.newPassword)) {
+    sectionError.value.password = 'La password deve contenere almeno una lettera maiuscola'
+    return
+  }
+  if (!/[0-9]/.test(changePasswordForm.value.newPassword)) {
+    sectionError.value.password = 'La password deve contenere almeno un numero'
     return
   }
   isSavingSection.value.password = true
@@ -224,7 +245,7 @@ onMounted(() => {
       <div class="sticky top-0 bg-surface-base dark:bg-surface-dark border-b border-border-light dark:border-border-dark z-nav px-4 h-16 flex items-center gap-4">
         <button
           @click="router.push('/map')"
-          class="md:hidden p-2 rounded-xl text-text-secondary dark:text-text-dark-secondary hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+          class="md:hidden p-3 rounded-xl text-text-secondary dark:text-text-dark-secondary hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           aria-label="Torna alla mappa"
         >
           <ArrowLeft :size="20" />
@@ -434,6 +455,20 @@ onMounted(() => {
           </p>
         </div>
 
+        <!-- Pending email change notice -->
+        <div
+          v-if="user.pendingEmail"
+          class="flex items-start gap-3 p-4 rounded-xl bg-safety-yellow/10 border border-safety-yellow/30"
+        >
+          <AlertCircle :size="16" class="text-safety-yellow shrink-0 mt-0.5" />
+          <div class="flex-1 text-sm">
+            <p class="font-medium text-text-primary dark:text-text-dark-primary">Cambio email in attesa di verifica</p>
+            <p class="text-text-secondary dark:text-text-dark-secondary mt-0.5">
+              Abbiamo inviato un link a <strong>{{ user.pendingEmail }}</strong>. Il cambio diventerà definitivo dopo la verifica.
+            </p>
+          </div>
+        </div>
+
         <!-- Change email -->
         <div class="bg-surface-elevated dark:bg-surface-dark-elevated rounded-2xl shadow-sm border border-border-light dark:border-border-dark overflow-hidden">
           <button
@@ -482,8 +517,21 @@ onMounted(() => {
           <div v-if="activeSection === 'password'" class="px-5 pb-5 space-y-3 border-t border-border-light dark:border-border-dark pt-4">
             <input v-model="changePasswordForm.currentPassword" type="password" placeholder="Password attuale"
                    class="w-full px-4 py-3 rounded-xl border border-border-light dark:border-border-dark bg-transparent text-text-primary dark:text-text-dark-primary text-sm focus:border-brand-blue focus:shadow-[0_0_0_3px_rgba(37,99,235,0.2)] transition-all" />
-            <input v-model="changePasswordForm.newPassword" type="password" placeholder="Nuova password (min 10 caratteri)"
+            <input v-model="changePasswordForm.newPassword" type="password" placeholder="Nuova password (min 10 car., 1 maiuscola, 1 numero)"
                    class="w-full px-4 py-3 rounded-xl border border-border-light dark:border-border-dark bg-transparent text-text-primary dark:text-text-dark-primary text-sm focus:border-brand-blue focus:shadow-[0_0_0_3px_rgba(37,99,235,0.2)] transition-all" />
+            <!-- Password strength indicator -->
+            <div v-if="passwordStrength" class="space-y-1.5">
+              <div class="flex gap-1">
+                <div v-for="i in 3" :key="i"
+                     class="h-1 flex-1 rounded-full transition-colors"
+                     :class="i <= passwordStrength.score ? (passwordStrength.score === 3 ? 'bg-safety-green' : passwordStrength.score === 2 ? 'bg-safety-yellow' : 'bg-safety-red') : 'bg-border-light dark:bg-border-dark'"></div>
+              </div>
+              <div class="flex gap-3 text-xs text-text-secondary dark:text-text-dark-secondary">
+                <span :class="passwordStrength.checks.length ? 'text-safety-green' : ''">✓ 10+ caratteri</span>
+                <span :class="passwordStrength.checks.upper ? 'text-safety-green' : ''">✓ Maiuscola</span>
+                <span :class="passwordStrength.checks.digit ? 'text-safety-green' : ''">✓ Numero</span>
+              </div>
+            </div>
             <input v-model="changePasswordForm.confirmPassword" type="password" placeholder="Conferma nuova password"
                    class="w-full px-4 py-3 rounded-xl border border-border-light dark:border-border-dark bg-transparent text-text-primary dark:text-text-dark-primary text-sm focus:border-brand-blue focus:shadow-[0_0_0_3px_rgba(37,99,235,0.2)] transition-all" />
             <p v-if="sectionError.password" class="text-xs text-safety-red">{{ sectionError.password }}</p>

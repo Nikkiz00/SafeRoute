@@ -114,7 +114,7 @@ async function confirmLogout() {
   </aside>
 
   <!-- Logout confirm modal -->
-  <div v-if="showLogoutConfirm" class="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center px-4 pb-4 sm:pb-0">
+  <div v-if="showLogoutConfirm" class="fixed inset-0 z-modal flex items-end sm:items-center justify-center px-4 pb-4 sm:pb-0">
     <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="showLogoutConfirm = false"></div>
     <div class="relative bg-surface-elevated dark:bg-surface-dark-elevated rounded-2xl shadow-xl p-6 w-full max-w-sm">
       <h3 class="font-display font-bold text-lg text-text-primary dark:text-text-dark-primary mb-2">Esci dall'account</h3>

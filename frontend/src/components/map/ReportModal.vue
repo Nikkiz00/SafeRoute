@@ -88,9 +88,9 @@ async function handleSubmit() {
             <div class="w-12 h-1.5 bg-border-light dark:bg-border-dark rounded-full"></div>
           </div>
           <button @click="handleClose"
-            class="w-8 h-8 flex items-center justify-center rounded-full text-text-secondary dark:text-text-dark-secondary hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            class="w-11 h-11 flex items-center justify-center rounded-full text-text-secondary dark:text-text-dark-secondary hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             aria-label="Chiudi">
-            <X :size="16" />
+            <X :size="18" />
           </button>
         </div>
 

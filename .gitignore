@@ -29,3 +29,6 @@ __pycache__/
 
 # Local tooling state
 .claude/settings.local.json
+
+# Cached external datasets (downloaded by import scripts, not source)
+backend/data/

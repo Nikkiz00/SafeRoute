@@ -15,7 +15,7 @@ const isLoading = ref(true)
 const isPollingMode = ref(false)
 
 let map: L.Map | null = null
-let marker: L.CircleMarker | null = null
+let marker: L.Marker | null = null
 let eventSource: EventSource | null = null
 let pollingInterval: ReturnType<typeof setInterval> | null = null
 let sseRetryCount = 0
@@ -43,15 +43,34 @@ function initMap(lat: number, lng: number) {
     attribution: '© OpenStreetMap contributors',
   }).addTo(map)
 
-  marker = L.circleMarker([lat, lng], {
-    radius: 10,
-    fillColor: '#2563EB',
-    color: '#ffffff',
-    weight: 3,
-    opacity: 1,
-    fillOpacity: 0.9,
+  marker = L.marker([lat, lng], {
+    icon: L.divIcon({
+      html: '<div class="sr-marker-wrap active"><div class="sr-ring"></div><div class="sr-dot"><div class="sr-dot-inner"></div></div></div>',
+      className: 'sr-marker-outer',
+      iconSize: [40, 40],
+      iconAnchor: [20, 20],
+    }),
+    zIndexOffset: 1000,
+    interactive: false,
   }).addTo(map)
-  marker.bindPopup('Posizione attuale').openPopup()
+
+  // Enable smooth position transition after initial placement
+  setTimeout(() => {
+    const el = marker?.getElement()
+    if (el) el.style.transition = 'transform 1.0s ease-out'
+  }, 100)
+
+  // Suspend transition during zoom to avoid animating Leaflet's post-zoom repositioning
+  map.on('zoomstart', () => {
+    const el = marker?.getElement()
+    if (el) el.style.transition = 'none'
+  })
+  map.on('zoomend', () => {
+    setTimeout(() => {
+      const el = marker?.getElement()
+      if (el) el.style.transition = 'transform 1.0s ease-out'
+    }, 100)
+  })
 }
 
 // Fix 4: Only re-pan when the marker leaves the current viewport bounds
@@ -75,8 +94,9 @@ async function loadTracking() {
     }
     isDev && console.debug('[tracking] poll: status=', data.value?.status)
 
-    // Fix 2: Stop polling when the session is no longer active
-    if (isPollingMode.value && data.value && data.value.status !== 'active') {
+    // Stop polling only when session is fully ended (not for 'sos' — SOS tracking stays live)
+    const sessionEnded = data.value?.status === 'completed' || data.value?.status === 'cancelled'
+    if (isPollingMode.value && sessionEnded) {
       isDev && console.debug('[tracking] session ended, stopping polling')
       if (pollingInterval) {
         clearInterval(pollingInterval)
@@ -167,7 +187,8 @@ function handleVisibilityChange() {
     isDev && console.debug('[tracking] tab hidden — SSE/polling paused by browser')
   } else {
     isDev && console.debug('[tracking] tab visible — resuming tracking')
-    if (isPollingMode.value && data.value?.status === 'active') {
+    const stillLive = data.value?.status === 'active' || data.value?.status === 'sos'
+    if (isPollingMode.value && stillLive) {
       loadTracking()
     }
   }
@@ -175,7 +196,8 @@ function handleVisibilityChange() {
 
 onMounted(async () => {
   await loadTracking()
-  if (data.value?.status === 'active') startSSE()
+  // Start SSE for both 'active' and 'sos' sessions (both have live position updates)
+  if (data.value?.status === 'active' || data.value?.status === 'sos') startSSE()
   document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
@@ -188,27 +210,29 @@ onUnmounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-surface dark:bg-surface-dark flex flex-col">
+  <div class="h-screen overflow-y-auto bg-surface dark:bg-surface-dark flex flex-col">
     <!-- Header -->
     <header
       class="px-4 py-3 flex items-center gap-3 bg-surface-elevated dark:bg-surface-dark-elevated border-b border-border-light dark:border-border-dark"
     >
-      <div class="w-8 h-8 rounded-full bg-brand-blue flex items-center justify-center">
+      <div class="w-8 h-8 rounded-full bg-brand-blue flex items-center justify-center shrink-0">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
           <path
             d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
           />
         </svg>
       </div>
-      <div>
-        <p class="text-xs text-text-secondary dark:text-text-dark-secondary">SafeRoute</p>
-        <p class="text-sm font-semibold text-text-primary dark:text-text-dark-primary">
+      <div class="min-w-0 flex-1">
+        <p class="text-xs text-text-secondary dark:text-text-dark-secondary truncate">
+          {{ data?.userName ? `Percorso di ${data.userName}` : 'SafeRoute' }}
+        </p>
+        <p class="text-sm font-semibold text-text-primary dark:text-text-dark-primary truncate">
           {{ data ? (statusMessages[data.status] ?? 'Tracking') : 'Caricamento...' }}
         </p>
       </div>
       <span
         v-if="data?.status === 'active'"
-        class="ml-auto text-xs px-2 py-0.5 rounded-full bg-brand-blue/10 text-brand-blue font-medium flex items-center gap-1"
+        class="ml-auto shrink-0 text-xs px-2 py-0.5 rounded-full bg-brand-blue/10 text-brand-blue font-medium flex items-center gap-1"
       >
         <span class="w-1.5 h-1.5 rounded-full bg-brand-blue animate-pulse"></span>
         Live
@@ -254,8 +278,8 @@ onUnmounted(() => {
       </div>
 
       <!-- Map -->
-      <div class="flex-1 relative">
-        <div id="tracking-map" class="w-full h-full min-h-[60vh]"></div>
+      <div class="flex-1 min-h-0 relative">
+        <div id="tracking-map" class="w-full h-full"></div>
 
         <!-- No position overlay -->
         <div
@@ -271,16 +295,41 @@ onUnmounted(() => {
         </div>
       </div>
 
-      <!-- Active tracking disclaimer -->
-      <div v-if="data?.status === 'active'" class="px-4 py-3 text-center border-t border-border-light dark:border-border-dark">
+      <!-- SOS alert bar (tracking still live, position still updating) -->
+      <div
+        v-if="data?.status === 'sos'"
+        class="px-4 py-3 bg-safety-red/10 border-t-2 border-safety-red"
+      >
+        <p class="text-sm font-semibold text-safety-red mb-0.5 text-center">
+          ⚠️ Allerta SOS attiva
+        </p>
+        <p v-if="data.sosMessage" class="text-xs text-safety-red font-medium text-center mb-0.5">
+          {{ data.sosMessage }}
+        </p>
+        <p class="text-xs text-safety-red/80 text-center">
+          La persona ha attivato un SOS. In caso di pericolo reale, chiama il 112.
+        </p>
+        <a
+          href="tel:112"
+          class="mt-2 flex items-center justify-center gap-2 w-full py-2.5 rounded-xl bg-safety-red text-white font-bold text-sm cursor-pointer hover:brightness-95 transition-all"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+          </svg>
+          Chiama il 112
+        </a>
+      </div>
+
+      <!-- Active / SOS tracking disclaimer -->
+      <div v-if="data?.status === 'active' || data?.status === 'sos'" class="px-4 py-3 text-center border-t border-border-light dark:border-border-dark">
         <p class="text-xs text-text-secondary dark:text-text-dark-secondary">
           Questa pagina mostra la posizione condivisa volontariamente dall'utente. In caso di emergenza reale, chiama il 112.
         </p>
       </div>
 
-      <!-- Status footer -->
+      <!-- Status footer (only for completed/cancelled — not SOS) -->
       <div
-        v-if="data?.status !== 'active'"
+        v-if="data?.status === 'completed' || data?.status === 'cancelled'"
         class="px-6 py-4 bg-surface-elevated dark:bg-surface-dark-elevated border-t border-border-light dark:border-border-dark text-center"
       >
         <p
@@ -293,7 +342,7 @@ onUnmounted(() => {
         >
           {{
             data?.status === 'completed'
-              ? '&#10003; La persona è arrivata in sicurezza'
+              ? '✓ La persona è arrivata in sicurezza'
               : 'Percorso annullato'
           }}
         </p>
@@ -304,3 +353,66 @@ onUnmounted(() => {
     </template>
   </div>
 </template>
+
+<style>
+/* Public tracking page marker — not scoped (Leaflet manages the DOM). Same sr-* design as MapView. */
+.sr-marker-outer {
+  background: none !important;
+  border: none !important;
+  overflow: visible !important;
+}
+
+.sr-marker-wrap {
+  position: relative;
+  width: 40px;
+  height: 40px;
+}
+
+.sr-ring {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.55);
+  animation: sr-ring-pulse 2s ease-out infinite;
+  pointer-events: none;
+}
+
+.sr-dot {
+  position: absolute;
+  top: 7px;
+  left: 7px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: #2563EB;
+  border: 3px solid #ffffff;
+  box-sizing: border-box;
+  box-shadow:
+    0 3px 16px rgba(0, 0, 0, 0.55),
+    0 0 0 2px rgba(37, 99, 235, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.sr-dot-inner {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.92);
+  flex-shrink: 0;
+}
+
+.sr-marker-wrap.stale .sr-ring { display: none; }
+.sr-marker-wrap.stale .sr-dot { background: #475569; border-color: rgba(255,255,255,0.75); box-shadow: 0 2px 8px rgba(0,0,0,0.4); opacity: 0.75; }
+.sr-marker-wrap.stale .sr-dot-inner { display: none; }
+
+@keyframes sr-ring-pulse {
+  0%   { transform: scale(1);   opacity: 0.65; }
+  100% { transform: scale(2.5); opacity: 0;    }
+}
+</style>

@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, Shield, LogOut, LayoutDashboard, Navigation, AlertTriangle, X, ShieldAlert } from 'lucide-vue-next'
+import { Search, Shield, LogOut, LayoutDashboard, Navigation, AlertTriangle, X, ShieldAlert, MapPin } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import { useZonesStore } from '@/stores/zones'
 import { useRouteStore } from '@/stores/route'
@@ -9,6 +9,8 @@ import { useSOSStore } from '@/stores/sos'
 import { fetchZoneById } from '@/api/zones'
 import { startRoute } from '@/api/routes'
 import type { Zone } from '@/types'
+import type { TravelMode } from '@/composables/useRouting'
+import { pointInGeometry } from '@/utils/geo'
 import MapView from '@/components/map/MapView.vue'
 import ZoneDetailsPanel from '@/components/map/ZoneDetailsPanel.vue'
 import RouteStartModal from '@/components/map/RouteStartModal.vue'
@@ -26,6 +28,7 @@ const isDev = import.meta.env.DEV
 
 const routeStore = useRouteStore()
 const sosStore = useSOSStore()
+const emailBannerVisible = computed(() => !!(auth.user && !auth.user.emailVerified))
 const sosFlowRef = ref<InstanceType<typeof SOSFlow> | null>(null)
 const mapViewRef = ref<InstanceType<typeof MapView> | null>(null)
 const { startTracking, stopTracking } = useRouteTracker()
@@ -37,6 +40,8 @@ const showWelcomeBanner = ref(true)
 const showRouteStart = ref(false)
 const showLogoutConfirm = ref(false)
 const routeError = ref<string | null>(null)
+const dangerZoneAlert = ref<string | null>(null)
+let lastAlertedZoneId: string | null = null
 
 onMounted(() => {
   setTimeout(() => {
@@ -103,6 +108,26 @@ async function handleZoneUpdated(zoneId: string) {
   }
 }
 
+function checkDangerZone(lat: number, lng: number) {
+  if (!routeStore.isTracking) return
+  const zonesStore = useZonesStore()
+  for (const zone of zonesStore.zones) {
+    if (!zone.isServiceActive || zone.safetyScore === null) continue
+    const inside = pointInGeometry(lat, lng, zone.geometry)
+    if (inside && zone.id !== lastAlertedZoneId) {
+      if (zone.safetyScore < 25) {
+        lastAlertedZoneId = zone.id
+        dangerZoneAlert.value = `Zona a rischio elevato: ${zone.name}. Mantieni alta l'attenzione.`
+        setTimeout(() => { dangerZoneAlert.value = null }, 8000)
+      } else if (zone.safetyScore < 50) {
+        lastAlertedZoneId = zone.id
+        dangerZoneAlert.value = `Zona con punteggio di sicurezza basso: ${zone.name}. Presta attenzione.`
+        setTimeout(() => { dangerZoneAlert.value = null }, 6000)
+      }
+    }
+  }
+}
+
 async function handleStartRoute(payload: {
   startLat: number
   startLng: number
@@ -110,10 +135,11 @@ async function handleStartRoute(payload: {
   endLng?: number
   destinationName: string | null
   routePreference: 'safe' | 'balanced' | 'fast'
+  travelMode: TravelMode
 }) {
   showRouteStart.value = false
   try {
-    const { routePreference, destinationName, ...rest } = payload
+    const { routePreference, travelMode, destinationName, ...rest } = payload
     const session = await startRoute({
       ...rest,
       ...(destinationName ? { destinationName } : {}),
@@ -122,7 +148,9 @@ async function handleStartRoute(payload: {
     routeStore.setTracking(true)
     routeStore.setDestinationName(destinationName)
     routeStore.setRoutePreference(routePreference)
+    routeStore.setTravelMode(travelMode)
     routeStore.setRouteInfo(null, null) // reset while OSRM loads
+    lastAlertedZoneId = null
     startTracking()
 
     // Draw route on map via OSRM if destination is available
@@ -130,10 +158,15 @@ async function handleStartRoute(payload: {
       const result = await mapViewRef.value?.drawRoute(
         payload.startLat, payload.startLng,
         payload.endLat, payload.endLng,
+        routePreference,
+        travelMode,
       )
       if (result) {
-        routeStore.setRouteInfo(result.distanceKm, result.durationMin)
-        console.debug('[routing] route calculated:', result.distanceKm, 'km,', result.durationMin, 'min')
+        routeStore.setRouteInfo(result.distanceKm, result.durationMin, result.modeDescription, result.safetyScore)
+        console.debug(
+          '[routing] route calculated mode=%s travel=%s: %skm %dmin safety=%d alternatives=%d',
+          routePreference, travelMode, result.distanceKm, result.durationMin, result.safetyScore, result.alternativesCount,
+        )
       }
     }
   } catch (err) {
@@ -149,7 +182,13 @@ watch(() => routeStore.isTracking, (val) => {
   if (!val) {
     stopTracking()
     mapViewRef.value?.clearRoutePolyline()
+    lastAlertedZoneId = null
   }
+})
+
+// Danger zone alert: check each GPS position update
+watch(() => routeStore.lastPosition, (pos) => {
+  if (pos) checkDangerZone(pos.lat, pos.lng)
 })
 
 function handleMapError(msg: string) {
@@ -179,7 +218,7 @@ function handleMapError(msg: string) {
       <!-- Email verification banner — solo se non verificata -->
       <div
         v-if="auth.user && !auth.user.emailVerified"
-        class="pointer-events-auto absolute top-0 left-0 right-0 z-[400] bg-safety-yellow/90 backdrop-blur-sm px-4 py-2 flex items-center justify-between gap-2"
+        class="pointer-events-auto absolute top-0 left-0 right-0 z-banner bg-safety-yellow/90 backdrop-blur-sm px-4 py-2 flex items-center justify-between gap-2"
       >
         <div class="flex items-center gap-2 text-yellow-900 dark:text-yellow-900">
           <ShieldAlert :size="14" class="shrink-0" />
@@ -194,7 +233,8 @@ function handleMapError(msg: string) {
       <Transition name="fade-in">
         <div
           v-if="showWelcomeBanner"
-          class="pointer-events-auto absolute top-20 left-4 right-4 z-sheet"
+          class="pointer-events-auto absolute left-4 right-4 z-sheet transition-[top] duration-200"
+          :class="emailBannerVisible ? 'top-28' : 'top-20'"
         >
           <div class="bg-surface-elevated/95 dark:bg-surface-dark-elevated/95 backdrop-blur-sm rounded-xl px-4 py-3 shadow-md border border-border-light dark:border-border-dark">
             <p class="text-sm font-medium text-text-primary dark:text-text-dark-primary">
@@ -209,7 +249,8 @@ function handleMapError(msg: string) {
       <Transition name="fade-in">
         <div
           v-if="routeError"
-          class="pointer-events-auto absolute top-20 left-4 right-4 z-sheet"
+          class="pointer-events-auto absolute left-4 right-4 z-sheet transition-[top] duration-200"
+          :class="emailBannerVisible ? 'top-28' : 'top-20'"
           role="alert"
         >
           <div class="flex items-center gap-3 bg-safety-red/95 backdrop-blur-sm rounded-xl px-4 py-3 shadow-md text-white">
@@ -222,8 +263,29 @@ function handleMapError(msg: string) {
         </div>
       </Transition>
 
-      <!-- Top bar overlay -->
-      <div class="pointer-events-auto absolute top-4 left-4 right-4 flex items-center gap-3 z-sheet">
+      <!-- Danger zone alert toast -->
+      <Transition name="fade-in">
+        <div
+          v-if="dangerZoneAlert"
+          class="pointer-events-auto absolute left-4 right-4 z-sheet transition-[top] duration-200"
+          :class="emailBannerVisible ? 'top-28' : 'top-20'"
+          role="alert"
+        >
+          <div class="flex items-start gap-3 bg-safety-yellow/95 backdrop-blur-sm rounded-xl px-4 py-3 shadow-md text-yellow-900">
+            <MapPin :size="16" class="shrink-0 mt-0.5" />
+            <p class="text-sm font-medium flex-1">{{ dangerZoneAlert }}</p>
+            <button @click="dangerZoneAlert = null" class="p-1 hover:bg-black/10 rounded-lg cursor-pointer shrink-0">
+              <X :size="14" />
+            </button>
+          </div>
+        </div>
+      </Transition>
+
+      <!-- Top bar overlay — shifts below email banner when it's visible -->
+      <div
+        class="pointer-events-auto absolute left-4 right-4 flex items-center gap-3 z-sheet transition-[top] duration-200"
+        :class="emailBannerVisible ? 'top-14' : 'top-4'"
+      >
         <!-- Avatar + user menu -->
         <div class="relative">
           <button
@@ -293,7 +355,7 @@ function handleMapError(msg: string) {
       <button
         v-if="!routeStore.isTracking"
         @click="showRouteStart = true"
-        class="pointer-events-auto fixed bottom-36 right-4 z-30 md:bottom-20 md:right-6 flex items-center gap-2 px-4 py-2.5 rounded-full bg-brand-blue text-white text-sm font-semibold shadow-lg hover:bg-blue-700 active:scale-95 transition-all cursor-pointer tap-highlight-none"
+        class="pointer-events-auto fixed bottom-36 right-4 z-nav md:bottom-20 md:right-6 flex items-center gap-2 px-4 py-2.5 rounded-full bg-brand-blue text-white text-sm font-semibold shadow-lg hover:bg-blue-700 active:scale-95 transition-all cursor-pointer tap-highlight-none"
         aria-label="Avvia percorso sicuro"
       >
         <Navigation :size="14" />
@@ -330,7 +392,7 @@ function handleMapError(msg: string) {
     <MobileBottomNav class="md:hidden" />
 
     <!-- Logout confirm modal -->
-    <div v-if="showLogoutConfirm" class="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center px-4 pb-4 sm:pb-0">
+    <div v-if="showLogoutConfirm" class="fixed inset-0 z-modal flex items-end sm:items-center justify-center px-4 pb-4 sm:pb-0">
       <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" @click="showLogoutConfirm = false"></div>
       <div class="relative bg-surface-elevated dark:bg-surface-dark-elevated rounded-2xl shadow-xl p-6 w-full max-w-sm">
         <h3 class="font-display font-bold text-lg text-text-primary dark:text-text-dark-primary mb-2">Esci dall'account</h3>

@@ -119,12 +119,12 @@ const transitionName = computed(() =>
       <button
         v-if="currentStep > 1"
         @click="prevStep"
-        class="p-2 rounded-xl text-text-secondary dark:text-text-dark-secondary hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+        class="p-3 rounded-xl text-text-secondary dark:text-text-dark-secondary hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
         aria-label="Torna al passo precedente"
       >
         <ArrowLeft :size="20" />
       </button>
-      <div v-else class="w-10"></div>
+      <div v-else class="w-[46px]"></div>
 
       <!-- Step dots -->
       <div class="flex-1 flex items-center gap-2" role="progressbar" :aria-valuenow="currentStep" :aria-valuemax="totalSteps">
@@ -146,7 +146,7 @@ const transitionName = computed(() =>
     </div>
 
     <!-- Step content -->
-    <div class="flex-1 flex flex-col overflow-hidden">
+    <div class="flex-1 flex flex-col overflow-x-hidden">
       <Transition :name="transitionName" mode="out-in">
         <!-- Step 1: Welcome -->
         <div v-if="currentStep === 1" key="step1" class="flex-1 flex flex-col items-center justify-center px-8 py-12 text-center">
@@ -312,8 +312,9 @@ const transitionName = computed(() =>
           </div>
         </div>
 
-        <!-- Step 4: Emergency contact -->
-        <div v-else-if="currentStep === 4" key="step4" class="flex-1 flex flex-col items-center justify-center px-8 py-12">
+        <!-- Step 4: Emergency contact (scrollable on small screens) -->
+        <div v-else-if="currentStep === 4" key="step4" class="flex-1 overflow-y-auto">
+          <div class="min-h-full flex flex-col items-center justify-center px-8 py-8">
           <div class="w-24 h-24 mb-8 flex items-center justify-center rounded-full bg-safety-green/10 mx-auto">
             <Users :size="48" class="text-safety-green" />
           </div>
@@ -391,6 +392,7 @@ const transitionName = computed(() =>
                 Aggiungi dopo
               </button>
             </div>
+          </div>
           </div>
         </div>
 

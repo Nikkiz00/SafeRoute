@@ -15,6 +15,7 @@ function stripUser(user: {
   createdAt: Date
   emailVerified: boolean
   emailVerifiedAt: Date | null
+  pendingEmail?: string | null
 }) {
   return {
     id: user.id,
@@ -26,6 +27,7 @@ function stripUser(user: {
     createdAt: user.createdAt,
     emailVerified: user.emailVerified,
     emailVerifiedAt: user.emailVerifiedAt,
+    pendingEmail: user.pendingEmail ?? null,
   }
 }
 
@@ -61,30 +63,34 @@ export async function changeEmail(userId: string, input: { newEmail: string; pas
   const valid = await comparePassword(input.password, user.passwordHash)
   if (!valid) throw new Error('Password non corretta')
 
-  const existing = await prisma.user.findUnique({ where: { email: input.newEmail } })
-  if (existing && existing.id !== userId) throw new Error('Email già in uso')
+  // Check new email not already taken by another user (or pending by another user)
+  const existing = await prisma.user.findFirst({
+    where: { OR: [{ email: input.newEmail }, { pendingEmail: input.newEmail }], NOT: { id: userId } },
+  })
+  if (existing) throw new Error('Email già in uso')
 
-  const oldEmail = user.email
+  if (input.newEmail === user.email) throw new Error('La nuova email è uguale a quella attuale')
 
+  // Save pending email — do NOT change active email yet
   const updated = await prisma.user.update({
     where: { id: userId },
-    data: { email: input.newEmail, emailVerified: false, emailVerifiedAt: null },
+    data: { pendingEmail: input.newEmail },
   })
 
-  // Notify old email address about the change (non-blocking)
+  // Notify current email address about the pending change
   sendSecurityEmail({
-    to: oldEmail,
+    to: user.email,
     userName: user.name,
-    subject: 'La tua email è stata modificata',
-    body: `La tua email SafeRoute è stata cambiata a ${input.newEmail}. Se non sei stato tu, contatta il supporto.`,
+    subject: 'Richiesta cambio email SafeRoute',
+    body: `È stata richiesta la modifica della tua email SafeRoute a ${input.newEmail}. Se non sei stato tu, ignora questa email. Il cambio diventerà definitivo solo dopo la verifica della nuova email.`,
   }).catch(e => console.error('[profile] security email (old address) error:', e))
 
-  // Send new verification (non-blocking)
+  // Send verification link to the NEW email
   try {
     const verToken = await createVerificationToken(userId)
     const verUrl = `${env.FRONTEND_URL}/verify-email?token=${verToken}`
     if (env.NODE_ENV === 'development') {
-      console.info(`[email-verify] DEV — nuova email da verificare: ${verUrl}`)
+      console.info(`[email-verify] DEV — verifica cambio email: ${verUrl}`)
     }
     sendVerificationEmail({ to: input.newEmail, userName: user.name, verificationUrl: verUrl })
       .catch(e => console.error('[profile] new email verification error:', e))

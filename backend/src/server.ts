@@ -19,7 +19,9 @@ const app = express()
 
 // CORS
 app.use(cors({
-  origin: env.FRONTEND_URL,
+  origin: env.NODE_ENV === 'development'
+    ? (origin, cb) => cb(null, true)
+    : env.FRONTEND_URL,
   credentials: true,
 }))
 
@@ -75,8 +77,9 @@ app.use((err: Error, _req: express.Request, res: express.Response, _next: expres
 })
 
 // Start
-app.listen(env.PORT, () => {
+app.listen(env.PORT, '0.0.0.0', () => {
   console.log(`SafeRoute API running on port ${env.PORT} [${env.NODE_ENV}]`)
+
 
   // SMS provider status
   if (env.SMS_PROVIDER === 'none') {

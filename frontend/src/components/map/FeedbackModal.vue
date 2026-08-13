@@ -55,7 +55,7 @@ async function handleSubmit() {
     setTimeout(() => {
       emit('submitted', result.newScore)
       handleClose()
-    }, 1500)
+    }, 400)
   } catch (e) {
     if (e instanceof ApiError) {
       error.value = e.status === 409
@@ -86,8 +86,8 @@ async function handleSubmit() {
         aria-hidden="true"
       ></div>
 
-      <div class="bg-surface-elevated dark:bg-surface-dark-elevated rounded-t-3xl shadow-sheet px-6 pt-4 pb-8"
-           style="padding-bottom: calc(2rem + env(safe-area-inset-bottom))">
+      <div class="bg-surface-elevated dark:bg-surface-dark-elevated rounded-t-3xl shadow-sheet px-6 pt-4 overflow-y-auto"
+           style="max-height: 90dvh; max-height: 90vh; padding-bottom: calc(2rem + env(safe-area-inset-bottom))">
 
         <!-- Handle + close -->
         <div class="flex items-center justify-between mb-4">
@@ -95,9 +95,9 @@ async function handleSubmit() {
             <div class="w-12 h-1.5 bg-border-light dark:bg-border-dark rounded-full"></div>
           </div>
           <button @click="handleClose"
-            class="w-8 h-8 flex items-center justify-center rounded-full text-text-secondary dark:text-text-dark-secondary hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            class="w-11 h-11 flex items-center justify-center rounded-full text-text-secondary dark:text-text-dark-secondary hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
             aria-label="Chiudi">
-            <X :size="16" />
+            <X :size="18" />
           </button>
         </div>
 
@@ -157,7 +157,7 @@ async function handleSubmit() {
           <button
             @click="handleSubmit"
             :disabled="!selectedRating || isSubmitting"
-            class="w-full py-3.5 rounded-xl font-semibold text-base transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            class="w-full py-3.5 rounded-xl font-semibold text-base transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
             :class="selectedRating && !isSubmitting ? 'bg-brand-blue text-white hover:bg-blue-700' : 'bg-slate-200 dark:bg-slate-700 text-text-secondary dark:text-text-dark-secondary'"
           >
             {{ isSubmitting ? 'Invio in corso...' : 'Invia valutazione' }}

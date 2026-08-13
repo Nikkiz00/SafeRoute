@@ -2,14 +2,25 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { CheckCircle, AlertCircle, Loader2 } from 'lucide-vue-next'
-import { verifyEmail } from '@/api/profile'
+import { verifyEmail, getProfile } from '@/api/profile'
+import { useAuthStore } from '@/stores/auth'
+import type { User } from '@/types'
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 
 type Status = 'loading' | 'success' | 'error'
 const status = ref<Status>('loading')
 const message = ref('')
+
+function goNext() {
+  if (!auth.isAuthenticated) {
+    router.push('/login')
+    return
+  }
+  router.push(auth.hasCompletedOnboarding ? '/map' : '/onboarding')
+}
 
 onMounted(async () => {
   const token = route.query.token
@@ -22,6 +33,26 @@ onMounted(async () => {
     const result = await verifyEmail(token)
     status.value = 'success'
     message.value = result.message
+    // If authenticated, refresh full profile — covers both regular verification
+    // and email-change verification where server applies the new email address
+    if (auth.isAuthenticated) {
+      try {
+        const { user: fresh } = await getProfile()
+        auth.updateUser({
+          name: fresh.name,
+          email: fresh.email,
+          role: fresh.role as User['role'],
+          plan: fresh.plan as User['plan'],
+          emailVerified: fresh.emailVerified ?? true,
+          emailVerifiedAt: fresh.emailVerifiedAt ?? null,
+          pendingEmail: fresh.pendingEmail ?? null,
+          onboardingCompleted: fresh.onboardingCompleted,
+        })
+      } catch {
+        // Fallback: mark verified locally even if profile fetch fails
+        auth.updateUser({ emailVerified: true, pendingEmail: null })
+      }
+    }
   } catch (err) {
     status.value = 'error'
     message.value = err instanceof Error ? err.message : 'Errore durante la verifica'
@@ -47,9 +78,9 @@ onMounted(async () => {
         </div>
         <h1 class="font-display text-2xl font-bold text-text-primary dark:text-text-dark-primary">Email verificata!</h1>
         <p class="text-text-secondary dark:text-text-dark-secondary">{{ message }}</p>
-        <button @click="router.push('/map')"
+        <button @click="goNext"
                 class="w-full py-3.5 rounded-xl bg-brand-blue text-white font-semibold hover:bg-blue-700 transition-colors cursor-pointer">
-          Vai alla mappa
+          {{ auth.isAuthenticated && !auth.hasCompletedOnboarding ? 'Continua configurazione' : 'Vai alla mappa' }}
         </button>
       </div>
 

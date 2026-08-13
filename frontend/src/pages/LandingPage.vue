@@ -47,17 +47,17 @@ const features = [
         </div>
 
         <!-- Nav actions -->
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-1.5 sm:gap-2">
           <ThemeToggle />
           <button
             @click="router.push('/login')"
-            class="px-4 py-2 text-sm font-medium text-text-secondary dark:text-text-dark-secondary hover:text-text-primary dark:hover:text-text-dark-primary transition-colors cursor-pointer"
+            class="hidden sm:inline-flex px-4 py-2 text-sm font-medium text-text-secondary dark:text-text-dark-secondary hover:text-text-primary dark:hover:text-text-dark-primary transition-colors cursor-pointer"
           >
             Accedi
           </button>
           <button
             @click="router.push('/register')"
-            class="px-4 py-2 rounded-xl bg-brand-blue text-white text-sm font-semibold hover:bg-blue-700 transition-colors cursor-pointer"
+            class="px-3 sm:px-4 py-2 rounded-xl bg-brand-blue text-white text-sm font-semibold hover:bg-blue-700 transition-colors cursor-pointer whitespace-nowrap"
           >
             Inizia gratis
           </button>

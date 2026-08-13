@@ -35,16 +35,30 @@ export async function verifyTokenAndMarkVerified(rawToken: string): Promise<{ su
     return { success: false, message: 'Token scaduto. Richiedi un nuovo invio.' }
   }
 
+  // If user has a pendingEmail, apply it now (email change confirmation flow)
+  const userRecord = await prisma.user.findUnique({
+    where: { id: record.userId },
+    select: { pendingEmail: true },
+  })
+
+  const userUpdateData: Record<string, unknown> = {
+    emailVerified: true,
+    emailVerifiedAt: new Date(),
+  }
+  if (userRecord?.pendingEmail) {
+    userUpdateData.email = userRecord.pendingEmail
+    userUpdateData.pendingEmail = null
+  }
+
   await prisma.$transaction([
-    prisma.user.update({
-      where: { id: record.userId },
-      data: { emailVerified: true, emailVerifiedAt: new Date() },
-    }),
-    prisma.emailVerificationToken.update({
-      where: { id: record.id },
-      data: { usedAt: new Date() },
-    }),
+    prisma.user.update({ where: { id: record.userId }, data: userUpdateData }),
+    prisma.emailVerificationToken.update({ where: { id: record.id }, data: { usedAt: new Date() } }),
   ])
 
-  return { success: true, message: 'Email verificata con successo' }
+  return {
+    success: true,
+    message: userRecord?.pendingEmail
+      ? 'Email aggiornata e verificata con successo'
+      : 'Email verificata con successo',
+  }
 }

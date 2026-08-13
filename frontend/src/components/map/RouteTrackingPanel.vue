@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
-import { CheckCircle, X, Share2, MapPin, Clock } from 'lucide-vue-next'
+import { CheckCircle, X, Share2, MapPin, Clock, Shield, Scale, Zap, Phone, AlertTriangle } from 'lucide-vue-next'
 import { completeRoute, cancelRoute, shareRoute } from '@/api/routes'
 import { useRouteStore } from '@/stores/route'
 import { ApiError } from '@/api/client'
@@ -15,6 +15,33 @@ const copySuccess = ref(false)
 
 const session = computed(() => routeStore.activeSession)
 const position = computed(() => routeStore.lastPosition)
+
+const modeIcon = computed(() => {
+  switch (routeStore.routePreference) {
+    case 'safe': return Shield
+    case 'fast': return Zap
+    default: return Scale
+  }
+})
+
+const modeIconClass = computed(() => {
+  switch (routeStore.routePreference) {
+    case 'safe': return 'text-safety-green'
+    case 'fast': return 'text-amber-500'
+    default: return 'text-brand-blue'
+  }
+})
+
+// Safety score visual indicator
+const safetyBadgeClass = computed(() => {
+  const s = routeStore.routeSafetyScore
+  if (s === null) return null
+  if (s >= 75) return { bg: 'bg-safety-green/15', text: 'text-safety-green', label: 'Ottima' }
+  if (s >= 50) return { bg: 'bg-amber-100 dark:bg-amber-900/20', text: 'text-amber-600 dark:text-amber-400', label: 'Buona' }
+  if (s >= 30) return { bg: 'bg-safety-red/10', text: 'text-safety-red', label: 'Media' }
+  return { bg: 'bg-purple-100 dark:bg-purple-900/20', text: 'text-purple-600 dark:text-purple-400', label: 'Bassa' }
+})
+
 const resolvedDestinationName = computed(
   () => session.value?.destinationName ?? routeStore.destinationName ?? null,
 )
@@ -118,7 +145,7 @@ async function handleShare() {
 <template>
   <div
     v-if="routeStore.isTracking && session"
-    class="fixed bottom-0 left-0 right-0 z-sheet md:left-64"
+    class="fixed bottom-0 left-0 right-0 z-modal md:left-64"
     role="region"
     aria-label="Percorso attivo"
   >
@@ -145,9 +172,10 @@ async function handleShare() {
         </span>
         <span
           v-if="position"
-          class="ml-auto text-xs text-text-secondary dark:text-text-dark-secondary"
+          class="ml-auto text-xs text-text-secondary dark:text-text-dark-secondary tabular-nums"
+          title="Coordinate GPS correnti"
         >
-          {{ position.lat.toFixed(5) }}, {{ position.lng.toFixed(5) }}
+          {{ position.lat.toFixed(4) }}°, {{ position.lng.toFixed(4) }}°
         </span>
       </div>
 
@@ -175,12 +203,24 @@ async function handleShare() {
         <span v-else class="italic">Calcolo percorso in corso...</span>
       </div>
 
-      <!-- Fallback routing note -->
+      <!-- Route mode + safety badge row -->
       <div
-        v-if="session.status === 'active' && isRoutingFallback"
-        class="mb-2 text-xs text-text-secondary dark:text-text-dark-secondary italic"
+        v-if="session.status === 'active' && (routeStore.routeModeDescription || safetyBadgeClass)"
+        class="flex items-center gap-2 mb-2 flex-wrap"
       >
-        Percorso stimato — dati orientativi
+        <!-- Mode description -->
+        <div v-if="routeStore.routeModeDescription" class="flex items-center gap-1.5 text-xs">
+          <component :is="modeIcon" :size="11" :class="modeIconClass" class="shrink-0" />
+          <span :class="modeIconClass">{{ routeStore.routeModeDescription }}</span>
+        </div>
+        <!-- Safety score badge -->
+        <div
+          v-if="safetyBadgeClass && routeStore.routeSafetyScore !== null"
+          :class="[safetyBadgeClass.bg, safetyBadgeClass.text, 'ml-auto px-2 py-0.5 rounded-full text-xs font-semibold flex items-center gap-1']"
+        >
+          <Shield :size="10" />
+          {{ routeStore.routeSafetyScore }}/100 · {{ safetyBadgeClass.label }}
+        </div>
       </div>
 
       <!-- Elapsed time -->
@@ -207,7 +247,7 @@ async function handleShare() {
         <!-- Share -->
         <button
           @click="handleShare"
-          class="w-10 h-10 flex items-center justify-center rounded-xl border border-border-light dark:border-border-dark text-text-secondary dark:text-text-dark-secondary hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer flex-shrink-0"
+          class="w-11 h-11 flex items-center justify-center rounded-xl border border-border-light dark:border-border-dark text-text-secondary dark:text-text-dark-secondary hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer flex-shrink-0"
           :title="copySuccess ? 'Link copiato!' : 'Condividi link'"
           :aria-label="copySuccess ? 'Link copiato' : 'Condividi link di tracking'"
         >
@@ -233,6 +273,21 @@ async function handleShare() {
           <CheckCircle :size="16" />
           {{ isCompleting ? '...' : 'Sono arrivato' }}
         </button>
+      </div>
+
+      <!-- SOS state — show 112 button -->
+      <div v-else-if="session.status === 'sos'" class="space-y-2">
+        <div class="flex items-center gap-2 p-3 rounded-xl bg-safety-red/10 border border-safety-red/30">
+          <AlertTriangle :size="14" class="text-safety-red shrink-0" />
+          <p class="text-sm font-medium text-safety-red">SOS attivo — i tuoi contatti sono stati avvisati</p>
+        </div>
+        <a
+          href="tel:112"
+          class="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-safety-red text-white font-bold cursor-pointer hover:brightness-95 transition-all"
+        >
+          <Phone :size="16" />
+          Chiama il 112
+        </a>
       </div>
 
       <!-- Completed/cancelled state -->

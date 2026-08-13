@@ -12,6 +12,7 @@ export interface TrackingData {
     accuracy: number | null
     timestamp: string
   } | null
+  sosMessage: string | null
 }
 
 export async function getTrackingByToken(token: string): Promise<TrackingData | null> {
@@ -20,6 +21,7 @@ export async function getTrackingByToken(token: string): Promise<TrackingData | 
     include: {
       user: { select: { name: true } },
       locationPings: { orderBy: { createdAt: 'desc' }, take: 1 },
+      sosAlerts: { orderBy: { createdAt: 'desc' }, take: 1, select: { message: true } },
     },
   })
 
@@ -33,6 +35,7 @@ export async function getTrackingByToken(token: string): Promise<TrackingData | 
   }
 
   const latestPing = session.locationPings[0] ?? null
+  const latestSos = session.sosAlerts[0] ?? null
 
   return {
     status: session.status as TrackingData['status'],
@@ -48,5 +51,6 @@ export async function getTrackingByToken(token: string): Promise<TrackingData | 
           timestamp: latestPing.createdAt.toISOString(),
         }
       : null,
+    sosMessage: latestSos?.message ?? null,
   }
 }

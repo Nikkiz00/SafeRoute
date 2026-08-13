@@ -1,5 +1,10 @@
+import { Prisma } from '@prisma/client'
 import { prisma } from '@/config/database.js'
 import type { ZoneLevel, ZoneResponse, ZoneSafetySummary } from './zones.types.js'
+
+// Above this count without a cityId/bbox filter, cap results instead of loading
+// the full national dataset (thousands of comuni) into memory on every request.
+const UNSCOPED_QUERY_LIMIT = 500
 
 function getSafetyLevel(score: number | null, isServiceActive: boolean): ZoneLevel {
   if (score === null || !isServiceActive) return 'unknown'
@@ -23,30 +28,10 @@ function parseGeometry(json: unknown): ZoneResponse['geometry'] {
   return json as ZoneResponse['geometry']
 }
 
-function getGeometryBBox(geometry: ZoneResponse['geometry']): [number, number, number, number] {
-  const ring = geometry.coordinates[0]
-  let minLng = ring[0][0]
-  let maxLng = ring[0][0]
-  let minLat = ring[0][1]
-  let maxLat = ring[0][1]
-
-  for (const point of ring) {
-    if (point[0] < minLng) minLng = point[0]
-    if (point[0] > maxLng) maxLng = point[0]
-    if (point[1] < minLat) minLat = point[1]
-    if (point[1] > maxLat) maxLat = point[1]
-  }
-
-  return [minLng, minLat, maxLng, maxLat]
-}
-
-function bboxIntersects(
-  zoneBBox: [number, number, number, number],
-  filterBBox: [number, number, number, number]
-): boolean {
-  const [zMinLng, zMinLat, zMaxLng, zMaxLat] = zoneBBox
-  const [fMinLng, fMinLat, fMaxLng, fMaxLat] = filterBBox
-  return !(zMaxLng < fMinLng || zMinLng > fMaxLng || zMaxLat < fMinLat || zMinLat > fMaxLat)
+function parseBBoxParam(bbox: string): [number, number, number, number] | null {
+  const parts = bbox.split(',').map(Number)
+  if (parts.length !== 4 || parts.some((n) => Number.isNaN(n))) return null
+  return [parts[0], parts[1], parts[2], parts[3]]
 }
 
 export async function getZones(opts: {
@@ -55,13 +40,26 @@ export async function getZones(opts: {
 }): Promise<ZoneResponse[]> {
   const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
 
-  const whereClause = opts.cityId ? { cityId: opts.cityId } : {}
+  const whereClause: Prisma.ZoneWhereInput = {}
+  if (opts.cityId) whereClause.cityId = opts.cityId
+
+  const filterBBox = opts.bbox ? parseBBoxParam(opts.bbox) : null
+  if (filterBBox) {
+    const [minLng, minLat, maxLng, maxLat] = filterBBox
+    // Bounding-box overlap test, pushed to SQL via precomputed columns so we
+    // never have to load geometryJson for every zone in the country.
+    whereClause.bboxMinLng = { lte: maxLng }
+    whereClause.bboxMaxLng = { gte: minLng }
+    whereClause.bboxMinLat = { lte: maxLat }
+    whereClause.bboxMaxLat = { gte: minLat }
+  }
 
   const [zones, feedbackGroups, reportGroups] = await Promise.all([
     prisma.zone.findMany({
       where: whereClause,
       include: { city: true },
       orderBy: { updatedAt: 'desc' },
+      ...(opts.cityId || filterBBox ? {} : { take: UNSCOPED_QUERY_LIMIT }),
     }),
     prisma.zoneFeedback.groupBy({
       by: ['zoneId'],
@@ -85,7 +83,7 @@ export async function getZones(opts: {
     reportMap.set(row.zoneId, row._count.id)
   }
 
-  let results: ZoneResponse[] = zones.map((zone) => {
+  const results: ZoneResponse[] = zones.map((zone) => {
     const feedbackCount = feedbackMap.get(zone.id) ?? 0
     const reportsCount = reportMap.get(zone.id) ?? 0
     const level = getSafetyLevel(zone.safetyScore, zone.isServiceActive)
@@ -111,21 +109,6 @@ export async function getZones(opts: {
       geometry,
     }
   })
-
-  if (opts.bbox) {
-    const parts = opts.bbox.split(',').map(Number)
-    if (parts.length === 4 && parts.every((n) => !isNaN(n))) {
-      const filterBBox: [number, number, number, number] = [parts[0], parts[1], parts[2], parts[3]]
-      results = results.filter((zone) => {
-        try {
-          const zoneBBox = getGeometryBBox(zone.geometry)
-          return bboxIntersects(zoneBBox, filterBBox)
-        } catch {
-          return true
-        }
-      })
-    }
-  }
 
   return results
 }

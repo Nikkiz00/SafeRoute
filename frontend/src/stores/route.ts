@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import type { RouteSession } from '@/types'
+import type { TravelMode } from '@/composables/useRouting'
 
 export const useRouteStore = defineStore('route', () => {
   const activeSession = ref<RouteSession | null>(null)
@@ -9,8 +10,11 @@ export const useRouteStore = defineStore('route', () => {
   const error = ref<string | null>(null)
   const destinationName = ref<string | null>(null)
   const routePreference = ref<'safe' | 'balanced' | 'fast'>('balanced')
+  const travelMode = ref<TravelMode>('driving')
   const routeDistanceKm = ref<number | null>(null)
   const routeDurationMin = ref<number | null>(null)
+  const routeModeDescription = ref<string | null>(null)
+  const routeSafetyScore = ref<number | null>(null)
 
   function setActiveSession(session: RouteSession | null) {
     activeSession.value = session
@@ -43,9 +47,20 @@ export const useRouteStore = defineStore('route', () => {
     routePreference.value = pref
   }
 
-  function setRouteInfo(distanceKm: number | null, durationMin: number | null) {
+  function setTravelMode(mode: TravelMode) {
+    travelMode.value = mode
+  }
+
+  function setRouteInfo(
+    distanceKm: number | null,
+    durationMin: number | null,
+    modeDescription?: string | null,
+    safetyScore?: number | null,
+  ) {
     routeDistanceKm.value = distanceKm
     routeDurationMin.value = durationMin
+    routeModeDescription.value = modeDescription ?? null
+    routeSafetyScore.value = safetyScore ?? null
   }
 
   function clearRoute() {
@@ -55,8 +70,11 @@ export const useRouteStore = defineStore('route', () => {
     error.value = null
     destinationName.value = null
     routePreference.value = 'balanced'
+    travelMode.value = 'driving'
     routeDistanceKm.value = null
     routeDurationMin.value = null
+    routeModeDescription.value = null
+    routeSafetyScore.value = null
   }
 
   return {
@@ -66,14 +84,18 @@ export const useRouteStore = defineStore('route', () => {
     error,
     destinationName,
     routePreference,
+    travelMode,
     routeDistanceKm,
     routeDurationMin,
+    routeModeDescription,
+    routeSafetyScore,
     setActiveSession,
     setLastPosition,
     setTracking,
     setError,
     setDestinationName,
     setRoutePreference,
+    setTravelMode,
     setRouteInfo,
     clearRoute,
   }

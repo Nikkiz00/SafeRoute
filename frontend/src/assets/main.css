@@ -110,6 +110,14 @@
 .fade-enter-from   { opacity: 0; }
 .fade-leave-to     { opacity: 0; }
 
+/* Prevent iOS Safari auto-zoom: inputs with font-size < 16px cause the page to zoom on focus */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="submit"]):not([type="button"]):not([type="file"]),
+  textarea {
+    font-size: 16px;
+  }
+}
+
 /* Leaflet overrides */
 .leaflet-container {
   font-family: inherit;
@@ -117,4 +125,11 @@
 
 .leaflet-control-attribution {
   font-size: 10px;
+}
+
+/* Zoom control sits bottom-left; lift it clear of the mobile bottom nav (72px + safe area) */
+@media (max-width: 767px) {
+  .leaflet-bottom.leaflet-left {
+    margin-bottom: calc(6rem + env(safe-area-inset-bottom));
+  }
 }

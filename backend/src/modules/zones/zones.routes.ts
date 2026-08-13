@@ -25,8 +25,8 @@ router.get('/:id', getZone)
 router.post('/:id/feedback', requireAuth, requireEmailVerified, submitFeedback)
 router.get('/:id/feedback-summary', feedbackSummary)
 
-// Reports (POST requires auth + rate limit; GET is public)
-router.post('/:id/reports', reportLimiter, requireAuth, submitReport)
+// Reports (POST requires auth + email verified + rate limit; GET is public)
+router.post('/:id/reports', reportLimiter, requireAuth, requireEmailVerified, submitReport)
 router.get('/:id/reports-summary', reportsSummary)
 
 export default router

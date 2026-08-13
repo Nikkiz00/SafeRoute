@@ -27,7 +27,7 @@ onUnmounted(() => {
   <Transition name="banner">
     <div
       v-if="isOffline"
-      class="fixed top-0 left-0 right-0 z-[35] flex items-center gap-3 px-4 py-3 bg-offline-yellow text-amber-900"
+      class="fixed top-0 left-0 right-0 z-banner flex items-center gap-3 px-4 py-3 bg-offline-yellow text-amber-900"
       role="alert"
       aria-live="assertive"
     >

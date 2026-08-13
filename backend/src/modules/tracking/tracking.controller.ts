@@ -44,10 +44,15 @@ export async function streamTracking(req: Request, res: Response): Promise<void>
       res.write(`data: ${JSON.stringify({ type: 'ping', position: pingData })}\n\n`)
     }
 
-    // Listen for status changes (completed/cancelled)
+    // Listen for status changes
     const statusHandler = (statusData: unknown) => {
+      const payload = statusData as { status?: string }
       res.write(`data: ${JSON.stringify({ type: 'status', ...(statusData as object) })}\n\n`)
-      res.end()
+      // Close stream only when session fully ends — NOT for 'sos' (tracking stays live during emergency)
+      if (payload.status === 'completed' || payload.status === 'cancelled') {
+        console.info(`[tracking-sse] session ended (status=${payload.status}), closing stream: ${tokenPrefix}`)
+        res.end()
+      }
     }
 
     trackingEmitter.on(`ping:${token}`, pingHandler)

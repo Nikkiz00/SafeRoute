@@ -15,6 +15,7 @@ export interface User {
   avatarInitials?: string
   emailVerified?: boolean
   emailVerifiedAt?: string | null
+  pendingEmail?: string | null
 }
 
 export interface EmergencyContact {
@@ -28,10 +29,9 @@ export interface EmergencyContact {
   createdAt?: string
 }
 
-export interface ZoneGeometry {
-  type: 'Polygon' | 'MultiPolygon'
-  coordinates: number[][][]
-}
+export type ZoneGeometry =
+  | { type: 'Polygon'; coordinates: number[][][] }
+  | { type: 'MultiPolygon'; coordinates: number[][][][] }
 
 export interface Zone {
   id: string
@@ -108,6 +108,7 @@ export interface TrackingData {
     accuracy: number | null
     timestamp: string
   } | null
+  sosMessage: string | null
 }
 
 export interface SOSAlert {

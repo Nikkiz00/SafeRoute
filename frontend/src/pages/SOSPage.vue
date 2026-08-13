@@ -46,7 +46,6 @@ const SOS_REASONS: SosReason[] = [
   { id: 'danger', label: 'Mi sento in pericolo', icon: AlertTriangle },
   { id: 'followed', label: 'Qualcuno mi segue', icon: Eye },
   { id: 'help', label: 'Ho bisogno di aiuto', icon: HandHelping },
-  { id: 'false_alarm', label: 'Falso allarme / test', icon: CheckCircle },
   { id: 'other', label: 'Altro', icon: MessageCircle },
 ]
 
@@ -222,13 +221,13 @@ onUnmounted(() => {
       <button
         v-if="phase !== 'sent'"
         @click="phase === 'confirm' ? (phase = 'select') : router.push('/map')"
-        class="p-2 rounded-xl cursor-pointer transition-colors"
+        class="p-3 rounded-xl cursor-pointer transition-colors"
         :class="phase === 'countdown' ? 'text-white/70 hover:text-white' : 'text-text-secondary dark:text-text-dark-secondary hover:bg-slate-100 dark:hover:bg-slate-800'"
         aria-label="Indietro"
       >
         <ArrowLeft :size="20" />
       </button>
-      <div v-else class="w-10"></div>
+      <div v-else class="w-12"></div>
 
       <h1
         :class="[

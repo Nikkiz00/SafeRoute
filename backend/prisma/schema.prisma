@@ -39,6 +39,7 @@ model User {
   deletedAt           DateTime?
   emailVerified       Boolean   @default(false)
   emailVerifiedAt     DateTime?
+  pendingEmail        String?
 
   refreshTokens           RefreshToken[]
   emergencyContacts       EmergencyContact[]
@@ -84,12 +85,14 @@ model EmergencyContact {
 }
 
 model City {
-  id       String  @id @default(cuid())
-  name     String
-  province String?
-  region   String?
-  country  String  @default("IT")
-  isActive Boolean @default(true)
+  id           String  @id @default(cuid())
+  name         String
+  province     String?
+  region       String?
+  country      String  @default("IT")
+  isActive     Boolean @default(true)
+  istatCode    String? @unique
+  boundaryJson Json?
 
   zones Zone[]
 
@@ -104,6 +107,10 @@ model Zone {
   geometryJson    Json
   isServiceActive Boolean  @default(false)
   safetyScore     Float?
+  bboxMinLng      Float?
+  bboxMinLat      Float?
+  bboxMaxLng      Float?
+  bboxMaxLat      Float?
   updatedAt       DateTime @updatedAt
 
   city               City                @relation(fields: [cityId], references: [id])
@@ -111,6 +118,10 @@ model Zone {
   reports            Report[]
   routeZoneCrossings RouteZoneCrossing[]
 
+  @@index([bboxMinLng])
+  @@index([bboxMaxLng])
+  @@index([bboxMinLat])
+  @@index([bboxMaxLat])
   @@map("zones")
 }
 

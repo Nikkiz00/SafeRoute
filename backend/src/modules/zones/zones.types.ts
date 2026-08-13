@@ -1,3 +1,5 @@
+import type { ZoneGeometry } from '@/lib/geo.js'
+
 export type ZoneLevel = 'safe' | 'caution' | 'danger' | 'critical' | 'unknown'
 
 export interface ZoneResponse {
@@ -16,10 +18,7 @@ export interface ZoneResponse {
   reportsCount: number
   sosCount: number
   lastUpdated: string
-  geometry: {
-    type: 'Polygon' | 'MultiPolygon'
-    coordinates: number[][][]
-  }
+  geometry: ZoneGeometry
 }
 
 export interface ZoneSafetySummary {
