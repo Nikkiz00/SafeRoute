@@ -84,17 +84,26 @@ model EmergencyContact {
   @@map("emergency_contacts")
 }
 
-model City {
-  id           String  @id @default(cuid())
-  name         String
-  province     String?
-  region       String?
-  country      String  @default("IT")
-  isActive     Boolean @default(true)
-  istatCode    String? @unique
-  boundaryJson Json?
+enum AdministrativeStatus {
+  ACTIVE
+  SUPPRESSED
+}
 
-  zones Zone[]
+model City {
+  id                   String               @id @default(cuid())
+  name                 String
+  province             String?
+  region               String?
+  country              String               @default("IT")
+  isActive             Boolean              @default(true)
+  istatCode            String?              @unique
+  boundaryJson         Json?
+  administrativeStatus AdministrativeStatus @default(ACTIVE)
+  succeededByCityId    String?
+
+  zones        Zone[]
+  succeededBy  City?  @relation("CitySuccession", fields: [succeededByCityId], references: [id])
+  predecessors City[] @relation("CitySuccession")
 
   @@map("cities")
 }

@@ -12,7 +12,8 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
-    "import:istat": "tsx scripts/import-istat-comuni.ts"
+    "import:istat": "tsx scripts/import-istat-comuni.ts",
+    "reconcile:admin": "tsx scripts/reconcile-administrative-changes.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",
@@ -27,6 +28,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@turf/turf": "^7.4.0",
     "@types/adm-zip": "^0.5.8",
     "@types/bcrypt": "^5.0.2",
     "@types/cors": "^2.8.17",

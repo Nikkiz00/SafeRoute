@@ -5,9 +5,15 @@
  * -> map to City/Zone -> upsert into the database.
  *
  * Usage:
- *   npm run import:istat                  # download (if not cached) + import all ~7900 comuni
- *   npm run import:istat -- --limit=50    # import only the first 50 features (smoke test)
- *   npm run import:istat -- --fresh       # force re-download of the ISTAT zip
+ *   npm run import:istat                          # download (if cached) + import ~7896 comuni + reconcile
+ *   npm run import:istat -- --limit=50            # import only the first 50 features (smoke test)
+ *   npm run import:istat -- --fresh               # force re-download of the ISTAT zip
+ *   npm run import:istat -- --skip-reconciliation # base import only, skip administrative-changes.ts rules
+ *
+ * After the base import (which reflects the ISTAT shapefile as published), this also
+ * applies administrative-changes.ts — mergers/incorporations effective after the
+ * shapefile's date that ISTAT hasn't republished geometry for yet. See
+ * src/lib/administrative-reconciliation.ts and docs/step-4-0-1-*.md.
  *
  * Source: ISTAT "Confini delle unità amministrative a fini statistici", generalized
  * WGS84-folder release (file is internally projected UTM32N despite the folder name --
@@ -22,6 +28,7 @@ import proj4 from 'proj4'
 import shapefile from 'shapefile'
 import { PrismaClient } from '@prisma/client'
 import { computeBBox, isValidGeometry, type ZoneGeometry } from '../src/lib/geo.js'
+import { applyAdministrativeChanges } from '../src/lib/administrative-reconciliation.js'
 
 const prisma = new PrismaClient()
 
@@ -47,6 +54,7 @@ interface ImportStats {
   zonesCreated: number
   zonesUpdated: number
   skippedCustomZoneCities: number
+  skippedSuppressedCities: number
   invalidGeometry: { comune: string; istatCode: string; reason: string }[]
 }
 
@@ -56,6 +64,7 @@ function parseArgs() {
   return {
     limit: limitArg ? Number(limitArg.split('=')[1]) : undefined,
     fresh: args.includes('--fresh'),
+    skipReconciliation: args.includes('--skip-reconciliation'),
   }
 }
 
@@ -179,6 +188,13 @@ async function upsertComune(feature: ComuneFeature, stats: ImportStats): Promise
     })
   }
 
+  if (city?.administrativeStatus === 'SUPPRESSED') {
+    // Comune merged/incorporated away by administrative-reconciliation.ts — the ISTAT
+    // shapefile predates that change and still lists it, but we must not resurrect it.
+    stats.skippedSuppressedCities++
+    return
+  }
+
   if (city) {
     await prisma.city.update({
       where: { id: city.id },
@@ -249,7 +265,7 @@ async function upsertComune(feature: ComuneFeature, stats: ImportStats): Promise
 }
 
 async function main(): Promise<void> {
-  const { limit, fresh } = parseArgs()
+  const { limit, fresh, skipReconciliation } = parseArgs()
 
   await ensureZipDownloaded(fresh)
   ensureExtracted()
@@ -268,6 +284,7 @@ async function main(): Promise<void> {
     zonesCreated: 0,
     zonesUpdated: 0,
     skippedCustomZoneCities: 0,
+    skippedSuppressedCities: 0,
     invalidGeometry: [],
   }
 
@@ -321,6 +338,7 @@ async function main(): Promise<void> {
   console.log(`  zones created:   ${stats.zonesCreated}`)
   console.log(`  zones updated:   ${stats.zonesUpdated}`)
   console.log(`  skipped (custom zones already present): ${stats.skippedCustomZoneCities}`)
+  console.log(`  skipped (suppressed by administrative reconciliation): ${stats.skippedSuppressedCities}`)
   console.log(`  invalid geometry: ${stats.invalidGeometry.length}`)
   if (stats.invalidGeometry.length > 0) {
     for (const err of stats.invalidGeometry.slice(0, 20)) {
@@ -328,6 +346,19 @@ async function main(): Promise<void> {
     }
     if (stats.invalidGeometry.length > 20) console.log(`    ... and ${stats.invalidGeometry.length - 20} more`)
   }
+
+  if (skipReconciliation) {
+    console.log('\n[istat] --skip-reconciliation passed, not applying administrative-changes.ts rules')
+    return
+  }
+
+  console.log('\n[istat] applying administrative reconciliation (merges/incorporations/renames)...')
+  const reconciliation = await applyAdministrativeChanges(prisma)
+  console.log(`  applied: ${reconciliation.applied.length}`)
+  reconciliation.applied.forEach((r) => console.log(`    - ${r}`))
+  console.log(`  skipped (already applied): ${reconciliation.skipped.length}`)
+  console.log(`  errors: ${reconciliation.errors.length}`)
+  reconciliation.errors.forEach((e) => console.log(`    - ${e.rule}: ${e.reason}`))
 }
 
 main()
