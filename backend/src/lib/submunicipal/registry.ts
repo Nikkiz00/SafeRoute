@@ -4,10 +4,12 @@
  * file and one line here — no changes to the engine or the CLI script.
  */
 import { milanoNilSource } from './sources/milano-nil.js'
+import { romaZoneUrbanisticheSource } from './sources/roma-zone-urbanistiche.js'
 import { torinoQuartieriSource } from './sources/torino-quartieri.js'
 import type { SubMunicipalSource } from './types.js'
 
 export const SUBMUNICIPAL_SOURCES: Record<string, SubMunicipalSource> = {
   [torinoQuartieriSource.id]: torinoQuartieriSource,
   [milanoNilSource.id]: milanoNilSource,
+  [romaZoneUrbanisticheSource.id]: romaZoneUrbanisticheSource,
 }

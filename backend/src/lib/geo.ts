@@ -1,4 +1,5 @@
 // Shared GeoJSON helpers for Polygon/MultiPolygon zone geometry (WGS84 lng/lat).
+import proj4 from 'proj4'
 
 export type ZoneGeometry =
   | { type: 'Polygon'; coordinates: number[][][] }
@@ -47,6 +48,31 @@ export function roundGeometry(geometry: ZoneGeometry): ZoneGeometry {
     return { type: 'Polygon', coordinates: geometry.coordinates.map(round) }
   }
   return { type: 'MultiPolygon', coordinates: geometry.coordinates.map((poly) => poly.map(round)) }
+}
+
+// Reprojects a geometry from an arbitrary source CRS (any proj4 definition
+// string, e.g. a national UTM grid) to WGS84, rounding to the same precision
+// as roundGeometry(). Shared by any SubMunicipalSource/importer whose source
+// data isn't already in WGS84 — see the ISTAT comuni importer (UTM32N) and
+// the Roma zone urbanistiche source (EPSG:6708 / UTM33N) for two different
+// proj4 strings using this same function.
+export function reprojectGeometry(
+  geometry: { type: 'Polygon' | 'MultiPolygon'; coordinates: unknown },
+  fromProj4: string
+): ZoneGeometry {
+  const reprojectRing = (ring: number[][]): number[][] =>
+    ring.map(([x, y]) => {
+      const [lng, lat] = proj4(fromProj4, 'WGS84', [x, y])
+      return [Number(lng.toFixed(COORD_PRECISION)), Number(lat.toFixed(COORD_PRECISION))]
+    })
+
+  if (geometry.type === 'Polygon') {
+    return { type: 'Polygon', coordinates: (geometry.coordinates as number[][][]).map(reprojectRing) }
+  }
+  return {
+    type: 'MultiPolygon',
+    coordinates: (geometry.coordinates as number[][][][]).map((poly) => poly.map(reprojectRing)),
+  }
 }
 
 export function isValidGeometry(geometry: unknown): geometry is ZoneGeometry {
