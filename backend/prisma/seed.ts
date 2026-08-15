@@ -216,189 +216,17 @@ async function main() {
   }
 
   // ─── TORINO ───────────────────────────────────────────────────
-  // Complete redesign — real neighborhood boundaries based on:
-  //   • Piazza Castello (center): 7.686°E, 45.071°N
-  //   • Porta Nuova station: 7.679°E, 45.062°N
-  //   • Po river (E boundary of centro): ~7.702°E
-  //   • Dora Riparia river (N boundary): ~45.079-45.081°N
-  //   • Railway from SW to NE: diagonal at ~45.062°N (center)
-  //   • Lingotto factory: 7.678°E, 45.029°N (far south)
-  //
-  // Zone sizes intentionally varied (Quadrilatero ~1.5km², Lingotto ~4km²)
-  const torino = await prisma.city.upsert({
+  // Zone geometry is NOT seeded here. Torino's 23 real quartieri come from the
+  // official Comune di Torino open data source — see
+  // backend/src/lib/submunicipal/sources/torino-quartieri.ts and
+  // docs/step-4-1-torino-submunicipal.md. Run after this seed:
+  //   npm run import:istat            (adopts this City row, sets istatCode/boundaryJson)
+  //   npm run import:submunicipal -- --source=comune-torino-quartieri
+  await prisma.city.upsert({
     where: { id: 'city_to' },
     update: {},
     create: { id: 'city_to', name: 'Torino', province: 'TO', region: 'Piemonte', country: 'IT', isActive: true },
   })
-
-  const torinoZones = [
-    {
-      id: 'zone_to_001',
-      name: 'Centro Storico',
-      type: 'district',
-      safetyScore: 80,
-      isServiceActive: true,
-      geometryJson: {
-        type: 'Polygon',
-        coordinates: closed([
-          // Follows the Roman city grid boundaries:
-          // S: railway/Corso Vittorio Emanuele II  E: Via Po / Piazza Vittorio
-          // N: Corso Regina Margherita (Dora Riparia)  W: Corso Re Umberto
-          // NE indent: Mole Antonelliana / Murazzi del Po area
-          [7.661, 45.063], [7.673, 45.060], [7.684, 45.059], [7.695, 45.062],
-          [7.703, 45.065], [7.706, 45.070], [7.705, 45.076], [7.701, 45.080],
-          [7.693, 45.083], [7.681, 45.083], [7.669, 45.081], [7.660, 45.076],
-          [7.658, 45.069],
-        ]),
-      },
-    },
-    {
-      id: 'zone_to_002',
-      name: 'Porta Palazzo / Valdocco',
-      type: 'district',
-      safetyScore: 33,
-      isServiceActive: true,
-      geometryJson: {
-        type: 'Polygon',
-        coordinates: closed([
-          // Europe's largest outdoor market + Aurora/Valdocco area
-          // S: Corso Regina Margherita (Dora)  N: Corso Giulio Cesare
-          // Wider than Centro, extends eastward into Aurora
-          [7.651, 45.081], [7.662, 45.081], [7.673, 45.082], [7.683, 45.083],
-          [7.693, 45.083], [7.703, 45.081], [7.706, 45.087], [7.703, 45.094],
-          [7.692, 45.099], [7.677, 45.100], [7.662, 45.097], [7.652, 45.091],
-          [7.650, 45.085],
-        ]),
-      },
-    },
-    {
-      id: 'zone_to_003',
-      name: 'Barriera di Milano',
-      type: 'district',
-      safetyScore: 22,
-      isServiceActive: true,
-      geometryJson: {
-        type: 'Polygon',
-        coordinates: closed([
-          // NE working-class area, extends towards Stura river
-          // Irregular shape: wider in middle, tapers north and south
-          // E side follows Via Cigna direction
-          [7.703, 45.081], [7.714, 45.080], [7.725, 45.082], [7.733, 45.087],
-          [7.736, 45.094], [7.731, 45.103], [7.719, 45.109], [7.704, 45.111],
-          [7.691, 45.107], [7.688, 45.099], [7.695, 45.093], [7.703, 45.094],
-          [7.706, 45.087],
-        ]),
-      },
-    },
-    {
-      id: 'zone_to_004',
-      name: 'Quadrilatero Romano',
-      type: 'district',
-      safetyScore: 68,
-      isServiceActive: true,
-      geometryJson: {
-        type: 'Polygon',
-        coordinates: closed([
-          // The original Roman castrum — intentionally small (~1.6km wide)
-          // NW of Piazza Castello, bounded by Porta Palatina area
-          // Compact, 9 vertices — reflects its tightly defined historic perimeter
-          [7.643, 45.065], [7.651, 45.063], [7.659, 45.063], [7.664, 45.068],
-          [7.663, 45.075], [7.658, 45.079], [7.650, 45.080], [7.643, 45.076],
-          [7.640, 45.070],
-        ]),
-      },
-    },
-    {
-      id: 'zone_to_005',
-      name: 'San Salvario',
-      type: 'district',
-      safetyScore: 60,
-      isServiceActive: true,
-      geometryJson: {
-        type: 'Polygon',
-        coordinates: closed([
-          // South of Porta Nuova, university/bohemian quarter
-          // N boundary follows the railway diagonal (SW-NE cut)
-          // E boundary: Via Nizza; W: Corso Galileo Ferraris
-          [7.660, 45.062], [7.673, 45.059], [7.685, 45.058], [7.696, 45.060],
-          [7.703, 45.057], [7.702, 45.049], [7.696, 45.042], [7.681, 45.040],
-          [7.667, 45.041], [7.657, 45.047], [7.655, 45.056], [7.658, 45.063],
-        ]),
-      },
-    },
-    {
-      id: 'zone_to_006',
-      name: 'Crocetta',
-      type: 'district',
-      safetyScore: 75,
-      isServiceActive: true,
-      geometryJson: {
-        type: 'Polygon',
-        coordinates: closed([
-          // SW affluent residential — Parco del Valentino edge, Corso Sommelier
-          // E: Corso Galileo Ferraris; N: Corso Vittorio Emanuele II
-          // Slightly concave on W side (Lungo Po Cadorna)
-          [7.630, 45.067], [7.641, 45.065], [7.650, 45.065], [7.658, 45.062],
-          [7.657, 45.054], [7.655, 45.046], [7.648, 45.042], [7.634, 45.041],
-          [7.621, 45.046], [7.619, 45.056], [7.623, 45.065],
-        ]),
-      },
-    },
-    {
-      id: 'zone_to_007',
-      name: 'Vanchiglia',
-      type: 'district',
-      safetyScore: 52,
-      isServiceActive: true,
-      geometryJson: {
-        type: 'Polygon',
-        coordinates: closed([
-          // E of centro along the Po — elongated N-S following the river
-          // W: Via Po (diagonal); E: Po river bank (Murazzi)
-          // Narrower than other zones, follows the riverbank shape
-          [7.703, 45.064], [7.712, 45.063], [7.721, 45.065], [7.727, 45.069],
-          [7.728, 45.075], [7.722, 45.081], [7.712, 45.082], [7.702, 45.080],
-          [7.701, 45.074], [7.702, 45.067],
-        ]),
-      },
-    },
-    {
-      id: 'zone_to_008',
-      name: 'Lingotto',
-      type: 'district',
-      safetyScore: null,
-      isServiceActive: false,
-      geometryJson: {
-        type: 'Polygon',
-        coordinates: closed([
-          // The iconic Fiat factory (now Lingotto congress center) — far south
-          // Largest zone in area (~4km wide) reflecting the industrial complex scale
-          // SW corner follows the Canale Regio Parco curve
-          [7.649, 45.043], [7.662, 45.039], [7.675, 45.038], [7.689, 45.038],
-          [7.701, 45.040], [7.706, 45.036], [7.704, 45.028], [7.692, 45.024],
-          [7.675, 45.023], [7.659, 45.026], [7.648, 45.033], [7.647, 45.040],
-        ]),
-      },
-    },
-  ]
-
-  for (const z of torinoZones.map(withBBox)) {
-    await prisma.zone.upsert({
-      where: { id: z.id },
-      update: {
-        name: z.name,
-        type: z.type,
-        safetyScore: z.safetyScore,
-        isServiceActive: z.isServiceActive,
-        geometryJson: z.geometryJson,
-        bboxMinLng: z.bboxMinLng,
-        bboxMinLat: z.bboxMinLat,
-        bboxMaxLng: z.bboxMaxLng,
-        bboxMaxLat: z.bboxMaxLat,
-      },
-      create: { ...z, cityId: torino.id },
-    })
-  }
 
   // ─── ROMA ─────────────────────────────────────────────────────
   // Center: Pantheon 12.477°E, 41.898°N — Colosseo 12.492°E, 41.890°N
@@ -626,7 +454,7 @@ async function main() {
     })
   }
 
-  console.log('Seed completed: Milano (8 zone), Torino (8 zone), Roma (12 zone).')
+  console.log('Seed completed: Milano (8 zone), Torino (city row only — see import:submunicipal), Roma (12 zone).')
 }
 
 main()

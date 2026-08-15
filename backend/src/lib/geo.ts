@@ -35,6 +35,20 @@ export function computeBBox(geometry: ZoneGeometry): BBox {
   return { minLng, minLat, maxLng, maxLat }
 }
 
+// Trims float noise from a geometry already in WGS84 (no reprojection). ~11cm
+// precision at Italy's latitude, matching the ISTAT importer's rounding.
+const COORD_PRECISION = 6
+
+export function roundGeometry(geometry: ZoneGeometry): ZoneGeometry {
+  const round = (ring: number[][]) =>
+    ring.map(([lng, lat]) => [Number(lng.toFixed(COORD_PRECISION)), Number(lat.toFixed(COORD_PRECISION))])
+
+  if (geometry.type === 'Polygon') {
+    return { type: 'Polygon', coordinates: geometry.coordinates.map(round) }
+  }
+  return { type: 'MultiPolygon', coordinates: geometry.coordinates.map((poly) => poly.map(round)) }
+}
+
 export function isValidGeometry(geometry: unknown): geometry is ZoneGeometry {
   if (!geometry || typeof geometry !== 'object') return false
   const g = geometry as { type?: unknown; coordinates?: unknown }

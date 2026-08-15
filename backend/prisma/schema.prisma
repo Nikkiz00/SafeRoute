@@ -122,6 +122,15 @@ model Zone {
   bboxMaxLat      Float?
   updatedAt       DateTime @updatedAt
 
+  // Provenance for zones imported from an authoritative sub-municipal source
+  // (see backend/src/lib/submunicipal/). Null for zones with no traceable
+  // source (legacy hand-drawn demo zones, manually curated zones).
+  source          String?
+  sourceId        String?
+  sourceType      String?
+  sourceUpdatedAt DateTime?
+  cityIstatCode   String?
+
   city               City                @relation(fields: [cityId], references: [id])
   feedback           ZoneFeedback[]
   reports            Report[]
@@ -131,6 +140,8 @@ model Zone {
   @@index([bboxMaxLng])
   @@index([bboxMinLat])
   @@index([bboxMaxLat])
+  @@index([source])
+  @@index([cityIstatCode])
   @@map("zones")
 }
 

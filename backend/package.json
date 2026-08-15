@@ -13,7 +13,8 @@
     "db:seed": "tsx prisma/seed.ts",
     "db:studio": "prisma studio",
     "import:istat": "tsx scripts/import-istat-comuni.ts",
-    "reconcile:admin": "tsx scripts/reconcile-administrative-changes.ts"
+    "reconcile:admin": "tsx scripts/reconcile-administrative-changes.ts",
+    "import:submunicipal": "tsx scripts/import-submunicipal.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",
