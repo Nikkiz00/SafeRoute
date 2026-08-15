@@ -52,168 +52,17 @@ async function main() {
   })
 
   // ─── MILANO ───────────────────────────────────────────────────
-  // Center: Piazza del Duomo at 9.190°E, 45.464°N
-  // Major reference: railway NW (Porta Garibaldi), Navigli canals SW,
-  // Stazione Centrale NE, ring roads (Circonvallazione Esterna)
-  const milano = await prisma.city.upsert({
+  // Zone geometry is NOT seeded here. Milano's 88 real NIL (Nuclei d'Identità
+  // Locale) come from the official Comune di Milano open data source — see
+  // backend/src/lib/submunicipal/sources/milano-nil.ts and
+  // docs/step-4-2-milano-submunicipal.md. Run after this seed:
+  //   npm run import:istat            (adopts this City row, sets istatCode/boundaryJson)
+  //   npm run import:submunicipal -- --source=comune-milano-nil
+  await prisma.city.upsert({
     where: { id: 'city_mi' },
     update: {},
     create: { id: 'city_mi', name: 'Milano', province: 'MI', region: 'Lombardia', country: 'IT', isActive: true },
   })
-
-  const milanoZones = [
-    {
-      id: 'zone_001',
-      name: 'Duomo / Centro Storico',
-      type: 'district',
-      safetyScore: 85,
-      isServiceActive: true,
-      geometryJson: {
-        type: 'Polygon',
-        coordinates: closed([
-          // Follows Cerchia dei Bastioni (inner ring): irregular oval shape
-          // S: Largo Augusto / Via Torino area; E: Porta Venezia area
-          [9.173, 45.456], [9.181, 45.453], [9.189, 45.452], [9.197, 45.454],
-          [9.204, 45.457], [9.207, 45.463], [9.206, 45.469], [9.201, 45.474],
-          [9.192, 45.476], [9.183, 45.474], [9.175, 45.471], [9.169, 45.465],
-          [9.169, 45.459],
-        ]),
-      },
-    },
-    {
-      id: 'zone_002',
-      name: 'Stazione Centrale / Buenos Aires',
-      type: 'district',
-      safetyScore: 60,
-      isServiceActive: true,
-      geometryJson: {
-        type: 'Polygon',
-        coordinates: closed([
-          // Station area: E-W elongated, railway cuts SW corner
-          [9.194, 45.473], [9.203, 45.470], [9.210, 45.471], [9.217, 45.474],
-          [9.221, 45.479], [9.220, 45.486], [9.214, 45.491], [9.204, 45.492],
-          [9.195, 45.490], [9.188, 45.485], [9.187, 45.479], [9.190, 45.475],
-        ]),
-      },
-    },
-    {
-      id: 'zone_003',
-      name: 'Quartiere Greco / Turro',
-      type: 'district',
-      safetyScore: 42,
-      isServiceActive: true,
-      geometryJson: {
-        type: 'Polygon',
-        coordinates: closed([
-          // NE working-class area, irregular NW indent (railway line)
-          [9.207, 45.478], [9.216, 45.476], [9.224, 45.477], [9.231, 45.480],
-          [9.235, 45.487], [9.233, 45.494], [9.226, 45.498], [9.215, 45.499],
-          [9.205, 45.496], [9.202, 45.489], [9.204, 45.482],
-        ]),
-      },
-    },
-    {
-      id: 'zone_004',
-      name: 'Viale Monza / Niguarda',
-      type: 'district',
-      safetyScore: 19,
-      isServiceActive: true,
-      geometryJson: {
-        type: 'Polygon',
-        coordinates: closed([
-          // N area, elongated along Viale Monza, larger than adjacent zones
-          [9.190, 45.488], [9.199, 45.486], [9.208, 45.487], [9.216, 45.491],
-          [9.220, 45.497], [9.218, 45.504], [9.209, 45.508], [9.200, 45.508],
-          [9.191, 45.505], [9.186, 45.499], [9.187, 45.492],
-        ]),
-      },
-    },
-    {
-      id: 'zone_005',
-      name: 'Navigli / Porta Ticinese',
-      type: 'district',
-      safetyScore: 72,
-      isServiceActive: true,
-      geometryJson: {
-        type: 'Polygon',
-        coordinates: closed([
-          // Canal area: follows the Naviglio Grande and Pavese diagonals
-          // More irregular due to the canal cuts through the neighborhood
-          [9.154, 45.448], [9.163, 45.445], [9.170, 45.444], [9.179, 45.447],
-          [9.187, 45.450], [9.192, 45.455], [9.191, 45.462], [9.185, 45.466],
-          [9.176, 45.467], [9.166, 45.465], [9.157, 45.461], [9.151, 45.455],
-          [9.151, 45.450],
-        ]),
-      },
-    },
-    {
-      id: 'zone_006',
-      name: 'Isola / Garibaldi',
-      type: 'district',
-      safetyScore: 80,
-      isServiceActive: true,
-      geometryJson: {
-        type: 'Polygon',
-        coordinates: closed([
-          // Trendy area north of old railway (now Parco Biblioteca degli Alberi)
-          // Slightly concave on S due to railway underpass area
-          [9.172, 45.478], [9.181, 45.476], [9.189, 45.477], [9.197, 45.480],
-          [9.202, 45.485], [9.200, 45.492], [9.194, 45.496], [9.184, 45.496],
-          [9.175, 45.494], [9.169, 45.489], [9.168, 45.484], [9.170, 45.480],
-        ]),
-      },
-    },
-    {
-      id: 'zone_007',
-      name: 'Città Studi / Piola',
-      type: 'district',
-      safetyScore: 64,
-      isServiceActive: true,
-      geometryJson: {
-        type: 'Polygon',
-        coordinates: closed([
-          // University area east of center, more elongated E-W
-          [9.214, 45.462], [9.223, 45.459], [9.231, 45.460], [9.239, 45.463],
-          [9.244, 45.469], [9.244, 45.475], [9.238, 45.480], [9.229, 45.481],
-          [9.220, 45.479], [9.213, 45.476], [9.211, 45.470], [9.212, 45.464],
-        ]),
-      },
-    },
-    {
-      id: 'zone_008',
-      name: 'Bovisa / Dergano',
-      type: 'district',
-      safetyScore: null,
-      isServiceActive: false,
-      geometryJson: {
-        type: 'Polygon',
-        coordinates: closed([
-          // NW industrial/residential, Politecnico area, irregular shape
-          [9.149, 45.488], [9.158, 45.485], [9.168, 45.484], [9.177, 45.487],
-          [9.182, 45.493], [9.180, 45.500], [9.173, 45.505], [9.163, 45.506],
-          [9.152, 45.503], [9.146, 45.498], [9.147, 45.491],
-        ]),
-      },
-    },
-  ]
-
-  for (const z of milanoZones.map(withBBox)) {
-    await prisma.zone.upsert({
-      where: { id: z.id },
-      update: {
-        name: z.name,
-        type: z.type,
-        safetyScore: z.safetyScore,
-        isServiceActive: z.isServiceActive,
-        geometryJson: z.geometryJson,
-        bboxMinLng: z.bboxMinLng,
-        bboxMinLat: z.bboxMinLat,
-        bboxMaxLng: z.bboxMaxLng,
-        bboxMaxLat: z.bboxMaxLat,
-      },
-      create: { ...z, cityId: milano.id },
-    })
-  }
 
   // ─── TORINO ───────────────────────────────────────────────────
   // Zone geometry is NOT seeded here. Torino's 23 real quartieri come from the
@@ -454,7 +303,7 @@ async function main() {
     })
   }
 
-  console.log('Seed completed: Milano (8 zone), Torino (city row only — see import:submunicipal), Roma (12 zone).')
+  console.log('Seed completed: Milano (city row only — see import:submunicipal), Torino (city row only — see import:submunicipal), Roma (12 zone).')
 }
 
 main()
