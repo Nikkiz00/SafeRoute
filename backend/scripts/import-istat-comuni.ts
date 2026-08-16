@@ -244,6 +244,7 @@ async function upsertComune(feature: ComuneFeature, stats: ImportStats): Promise
       bboxMinLat: bbox.minLat,
       bboxMaxLng: bbox.maxLng,
       bboxMaxLat: bbox.maxLat,
+      sourceStatus: 'municipality_fallback',
     },
     create: {
       id: zoneId,
@@ -257,6 +258,7 @@ async function upsertComune(feature: ComuneFeature, stats: ImportStats): Promise
       bboxMinLat: bbox.minLat,
       bboxMaxLng: bbox.maxLng,
       bboxMaxLat: bbox.maxLat,
+      sourceStatus: 'municipality_fallback',
     },
   })
 

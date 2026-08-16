@@ -13,3 +13,12 @@ export const SUBMUNICIPAL_SOURCES: Record<string, SubMunicipalSource> = {
   [milanoNilSource.id]: milanoNilSource,
   [romaZoneUrbanisticheSource.id]: romaZoneUrbanisticheSource,
 }
+
+/**
+ * Same sources, keyed by cityIstatCode instead of source id — this is the priority-1
+ * lookup used by source-resolver.ts's resolveZoneSource(): "does this comune already
+ * have a hand-registered authoritative source?" before ever falling back to OSM.
+ */
+export const OFFICIAL_SOURCES_BY_ISTAT: Record<string, SubMunicipalSource> = Object.fromEntries(
+  Object.values(SUBMUNICIPAL_SOURCES).map((s) => [s.cityIstatCode, s])
+)

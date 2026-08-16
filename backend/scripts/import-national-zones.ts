@@ -1,0 +1,181 @@
+/**
+ * National zone-source strategy — CLI over source-resolver.ts (Step 4.4).
+ *
+ * For each requested comune (by ISTAT code): resolves official -> OSM -> municipality
+ * per resolveZoneSource(), and — unless --validate-only — writes the result through
+ * the exact same importSubMunicipalSource() engine used by Torino/Milano/Roma. The
+ * ISTAT municipality zone (from `npm run import:istat`) is left untouched whenever
+ * the strategy resolves to 'municipality' — nothing is written for that case.
+ *
+ * Usage:
+ *   npm run zones:national -- --sample                       # 8 sample cities (see SAMPLE_CITIES)
+ *   npm run zones:national -- --cities=037006,048017          # explicit ISTAT codes
+ *   npm run zones:national -- --city=037006                   # single city
+ *   npm run zones:national -- --sample --validate-only        # resolve + validate, write nothing
+ *   npm run zones:national -- --sample --fresh                # force re-fetch OSM (ignore disk cache)
+ *
+ * Requires the parent comuni to already exist (`npm run import:istat`).
+ */
+import { writeFile, mkdir } from 'node:fs/promises'
+import path from 'node:path'
+import { PrismaClient } from '@prisma/client'
+import { importSubMunicipalSource } from '../src/lib/submunicipal/engine.js'
+import { resolveZoneSource, type SourceResolution } from '../src/lib/submunicipal/source-resolver.js'
+import type { OsmValidationMetrics } from '../src/lib/submunicipal/osm/validate.js'
+
+const prisma = new PrismaClient()
+
+// The Step 4.4 sample: 5 named capoluoghi + 1 medium capoluogo + 2 small comuni,
+// picked per the goal's brief. ISTAT codes verified against the live DB (import:istat
+// already ran) rather than typed from memory.
+const SAMPLE_CITIES: { istatCode: string; label: string }[] = [
+  { istatCode: '037006', label: 'Bologna' },
+  { istatCode: '048017', label: 'Firenze' },
+  { istatCode: '063049', label: 'Napoli' },
+  { istatCode: '010025', label: 'Genova' },
+  { istatCode: '082053', label: 'Palermo' },
+  { istatCode: '022205', label: 'Trento (capoluogo medio)' },
+  { istatCode: '001127', label: 'La Loggia (piccolo comune)' },
+  { istatCode: '065011', label: 'Atrani (piccolo comune)' },
+]
+
+interface CliArgs {
+  cities: string[]
+  validateOnly: boolean
+  fresh: boolean
+}
+
+function parseArgs(): CliArgs {
+  const args = process.argv.slice(2)
+  const validateOnly = args.includes('--validate-only')
+  const fresh = args.includes('--fresh')
+
+  if (args.includes('--sample')) {
+    return { cities: SAMPLE_CITIES.map((c) => c.istatCode), validateOnly, fresh }
+  }
+  const cityArg = args.find((a) => a.startsWith('--city='))
+  if (cityArg) {
+    return { cities: [cityArg.split('=')[1]], validateOnly, fresh }
+  }
+  const citiesArg = args.find((a) => a.startsWith('--cities='))
+  if (citiesArg) {
+    return { cities: citiesArg.split('=')[1].split(',').map((s) => s.trim()).filter(Boolean), validateOnly, fresh }
+  }
+  return { cities: [], validateOnly, fresh }
+}
+
+interface CityRunResult {
+  cityIstatCode: string
+  cityName: string
+  strategy: SourceResolution['strategy'] | 'error'
+  status: SourceResolution['status'] | 'error'
+  osmTier: SourceResolution['osmTier']
+  reasons: string[]
+  metrics: OsmValidationMetrics | null
+  written: boolean
+  zonesCreated?: number
+  zonesUpdated?: number
+  zonesRetired?: number
+  error?: string
+}
+
+/**
+ * One city's Overpass fetch or DB write failing (e.g. a transient 504 that exhausts
+ * the retry budget in overpass-client.ts) must never abort the rest of the batch —
+ * a national-scale run has to survive individual comuni failing. Every await in here
+ * is wrapped so runCity() always resolves, never rejects.
+ */
+async function runCity(istatCode: string, opts: { validateOnly: boolean; fresh: boolean }): Promise<CityRunResult> {
+  let resolution: SourceResolution
+  try {
+    resolution = await resolveZoneSource(prisma, istatCode, { fresh: opts.fresh })
+  } catch (err) {
+    return {
+      cityIstatCode: istatCode,
+      cityName: istatCode,
+      strategy: 'error',
+      status: 'error',
+      osmTier: null,
+      reasons: [],
+      metrics: null,
+      written: false,
+      error: err instanceof Error ? err.message.split('\n')[0] : String(err),
+    }
+  }
+
+  const base: CityRunResult = {
+    cityIstatCode: resolution.cityIstatCode,
+    cityName: resolution.cityName,
+    strategy: resolution.strategy,
+    status: resolution.status,
+    osmTier: resolution.osmTier,
+    reasons: resolution.reasons,
+    metrics: resolution.osmReport?.metrics ?? null,
+    written: false,
+  }
+
+  if (opts.validateOnly || !resolution.source) {
+    return base
+  }
+
+  try {
+    const stats = await importSubMunicipalSource(prisma, resolution.source, { fresh: opts.fresh })
+    return { ...base, written: true, zonesCreated: stats.zonesCreated, zonesUpdated: stats.zonesUpdated, zonesRetired: stats.zonesRetired }
+  } catch (err) {
+    return { ...base, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+function printRow(r: CityRunResult): void {
+  const icon = { official: '✓ official', osm: '✓ osm', municipality: '· municipality', error: '✗ error' }[r.strategy]
+  console.log(`\n[${r.cityIstatCode}] ${r.cityName} — ${icon} (status=${r.status})`)
+  for (const reason of r.reasons) console.log(`    ${reason}`)
+  if (r.written) console.log(`    written: +${r.zonesCreated} created, ~${r.zonesUpdated} updated, -${r.zonesRetired} retired`)
+  if (r.error) console.log(`    ERROR: ${r.error}`)
+}
+
+async function main(): Promise<void> {
+  const { cities, validateOnly, fresh } = parseArgs()
+
+  if (cities.length === 0) {
+    console.log('Usage: npm run zones:national -- --sample | --city=<istatCode> | --cities=<istat1,istat2,...> [--validate-only] [--fresh]')
+    process.exitCode = 1
+    return
+  }
+
+  console.log(`[national-zones] resolving ${cities.length} comune(s)${validateOnly ? ' (validate-only, no writes)' : ''}...`)
+
+  const results: CityRunResult[] = []
+  for (const istatCode of cities) {
+    const result = await runCity(istatCode, { validateOnly, fresh })
+    printRow(result)
+    results.push(result)
+  }
+
+  const summary = {
+    official: results.filter((r) => r.strategy === 'official').length,
+    osm: results.filter((r) => r.strategy === 'osm').length,
+    municipality: results.filter((r) => r.strategy === 'municipality').length,
+    errors: results.filter((r) => r.error).length,
+  }
+  console.log('\n[national-zones] summary')
+  console.log(`  official:     ${summary.official}`)
+  console.log(`  osm_validated: ${summary.osm}`)
+  console.log(`  municipality_fallback: ${summary.municipality}`)
+  console.log(`  errors:       ${summary.errors}`)
+
+  const reportDir = path.resolve(import.meta.dirname, '../data/reports')
+  await mkdir(reportDir, { recursive: true })
+  const reportPath = path.join(reportDir, `national-zones-${new Date().toISOString().replace(/[:.]/g, '-')}.json`)
+  await writeFile(reportPath, JSON.stringify({ generatedAt: new Date().toISOString(), validateOnly, fresh, summary, results }, null, 2))
+  console.log(`\n[national-zones] full report written to ${reportPath}`)
+}
+
+main()
+  .catch((e) => {
+    console.error('[national-zones] failed:', e)
+    process.exitCode = 1
+  })
+  .finally(async () => {
+    await prisma.$disconnect()
+  })

@@ -117,6 +117,7 @@ export const romaZoneUrbanisticheSource: SubMunicipalSource = {
   sourceType: 'zona_urbanistica',
   license: 'Riuso libero con sola indicazione della fonte (comune.roma.it/web/it/open-data.page) — nessuna licenza formale pubblicata',
   sourceUpdatedAt: '1992-01-01', // 155 zones stable since Fiumicino's 1992 secession; no machine-readable revision date published (see report §8)
+  qualityStatus: 'official',
   fetch: fetch_,
   parse: parse_,
 }

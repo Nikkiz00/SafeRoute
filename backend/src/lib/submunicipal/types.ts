@@ -30,6 +30,13 @@ export interface SubMunicipalSource {
   license: string
   /** ISO date the *source dataset* itself was last updated (not the import run date). */
   sourceUpdatedAt: string
+  /**
+   * Provenance tier written to Zone.sourceStatus — 'official' for a hand-registered
+   * authoritative source (see sources/*.ts), 'osm_validated' for a source built by
+   * osm/osm-source.ts that passed osm/validate.ts. Never 'municipality_fallback' or
+   * 'rejected' here — those never reach the engine (see source-resolver.ts).
+   */
+  qualityStatus: 'official' | 'osm_validated'
 
   /** Downloads (or reuses a local cache of) the raw source data. Must be idempotent. */
   fetch(opts: { fresh: boolean }): Promise<void>

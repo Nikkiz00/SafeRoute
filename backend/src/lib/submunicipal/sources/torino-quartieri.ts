@@ -79,6 +79,7 @@ export const torinoQuartieriSource: SubMunicipalSource = {
   sourceType: 'quartiere',
   license: 'CC-BY (Creative Commons Attribution)',
   sourceUpdatedAt: '2019-10-17',
+  qualityStatus: 'official',
   fetch: fetch_,
   parse: parse_,
 }

@@ -88,6 +88,7 @@ export const milanoNilSource: SubMunicipalSource = {
   sourceType: 'nil',
   license: 'CC-BY (Creative Commons Attribution)',
   sourceUpdatedAt: '2026-05-08',
+  qualityStatus: 'official',
   fetch: fetch_,
   parse: parse_,
 }
