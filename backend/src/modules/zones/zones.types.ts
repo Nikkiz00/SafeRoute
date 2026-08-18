@@ -11,7 +11,14 @@ export interface ZoneResponse {
   region: string | null
   type: string
   isServiceActive: boolean
-  safetyScore: number | null
+  // See docs/step-5-0-safety-data-baseline.md. finalSafetyScore is the score every
+  // consumer (map color, routing) must use — the others are provenance/debug info.
+  finalSafetyScore: number | null
+  baselineSafetyScore: number | null
+  liveSafetyScore: number | null
+  scoreConfidence: number | null
+  scoreSource: string | null
+  scoreReferenceYear: number | null
   level: ZoneLevel
   color: string
   feedbackCount: number
@@ -27,7 +34,12 @@ export interface ZoneSafetySummary {
   cityId: string
   cityName: string
   isServiceActive: boolean
-  safetyScore: number | null
+  finalSafetyScore: number | null
+  baselineSafetyScore: number | null
+  liveSafetyScore: number | null
+  scoreConfidence: number | null
+  scoreSource: string | null
+  scoreReferenceYear: number | null
   level: ZoneLevel
   color: string
   feedbackCount: number

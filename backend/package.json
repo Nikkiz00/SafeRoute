@@ -15,7 +15,8 @@
     "import:istat": "tsx scripts/import-istat-comuni.ts",
     "reconcile:admin": "tsx scripts/reconcile-administrative-changes.ts",
     "import:submunicipal": "tsx scripts/import-submunicipal.ts",
-    "zones:national": "tsx scripts/import-national-zones.ts"
+    "zones:national": "tsx scripts/import-national-zones.ts",
+    "safety:baseline": "tsx scripts/import-crime-baseline.ts"
   },
   "dependencies": {
     "@prisma/client": "^5.14.0",

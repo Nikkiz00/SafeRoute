@@ -63,7 +63,7 @@ export interface AdminZoneSummary {
   name: string
   type: string
   isServiceActive: boolean
-  safetyScore: number | null
+  finalSafetyScore: number | null
   cityId: string
   cityName: string
   feedbackCount30d: number

@@ -479,7 +479,7 @@ const TAB_LABELS: Record<AdminTab, string> = {
                     {{ zone.name }}
                   </p>
                   <p class="text-xs text-text-secondary dark:text-text-dark-secondary">
-                    {{ zone.cityName }} · Score: {{ zone.safetyScore !== null ? zone.safetyScore : '—' }}
+                    {{ zone.cityName }} · Score: {{ zone.finalSafetyScore !== null ? zone.finalSafetyScore : '—' }}
                     · Feedback: {{ zone.feedbackCount30d }} · Segnalazioni: {{ zone.reportsCount30d }}
                   </p>
                 </div>

@@ -86,7 +86,7 @@ export async function getZones(opts: {
   const results: ZoneResponse[] = zones.map((zone) => {
     const feedbackCount = feedbackMap.get(zone.id) ?? 0
     const reportsCount = reportMap.get(zone.id) ?? 0
-    const level = getSafetyLevel(zone.safetyScore, zone.isServiceActive)
+    const level = getSafetyLevel(zone.finalSafetyScore, zone.isServiceActive)
     const color = getLevelColor(level)
     const geometry = parseGeometry(zone.geometryJson)
 
@@ -99,7 +99,12 @@ export async function getZones(opts: {
       region: zone.city.region,
       type: zone.type,
       isServiceActive: zone.isServiceActive,
-      safetyScore: zone.safetyScore,
+      finalSafetyScore: zone.finalSafetyScore,
+      baselineSafetyScore: zone.baselineSafetyScore,
+      liveSafetyScore: zone.liveSafetyScore,
+      scoreConfidence: zone.scoreConfidence,
+      scoreSource: zone.scoreSource,
+      scoreReferenceYear: zone.scoreReferenceYear,
       level,
       color,
       feedbackCount,
@@ -131,7 +136,7 @@ export async function getZoneById(id: string): Promise<ZoneResponse | null> {
 
   if (!zone) return null
 
-  const level = getSafetyLevel(zone.safetyScore, zone.isServiceActive)
+  const level = getSafetyLevel(zone.finalSafetyScore, zone.isServiceActive)
   const color = getLevelColor(level)
   const geometry = parseGeometry(zone.geometryJson)
 
@@ -144,7 +149,12 @@ export async function getZoneById(id: string): Promise<ZoneResponse | null> {
     region: zone.city.region,
     type: zone.type,
     isServiceActive: zone.isServiceActive,
-    safetyScore: zone.safetyScore,
+    finalSafetyScore: zone.finalSafetyScore,
+    baselineSafetyScore: zone.baselineSafetyScore,
+    liveSafetyScore: zone.liveSafetyScore,
+    scoreConfidence: zone.scoreConfidence,
+    scoreSource: zone.scoreSource,
+    scoreReferenceYear: zone.scoreReferenceYear,
     level,
     color,
     feedbackCount,
@@ -181,16 +191,11 @@ export async function getZoneSafetySummary(zoneId: string): Promise<ZoneSafetySu
       ? feedback.reduce((sum, f) => sum + f.rating, 0) / feedbackCount
       : null
 
-  let safetyScore: number | null = zone.safetyScore
-
-  if (feedbackCount + reportsCount >= 3) {
-    const avgRatingNormalized = averageRating !== null ? ((averageRating - 1) / 4) * 100 : 50
-    const reportPenalty = Math.min(reportsCount * 5, 25)
-    const computed = Math.round(avgRatingNormalized - reportPenalty)
-    safetyScore = Math.max(0, Math.min(100, computed))
-  }
-
-  const level = getSafetyLevel(safetyScore, zone.isServiceActive)
+  // finalSafetyScore is always read from the persisted value — computed and kept in
+  // sync by score.service.ts's recalculateZoneScore() (called after every feedback/
+  // report write) and by the crime-baseline importer. Never recomputed inline here,
+  // so this endpoint can never drift from what map color / routing actually use.
+  const level = getSafetyLevel(zone.finalSafetyScore, zone.isServiceActive)
   const color = getLevelColor(level)
 
   return {
@@ -199,7 +204,12 @@ export async function getZoneSafetySummary(zoneId: string): Promise<ZoneSafetySu
     cityId: zone.city.id,
     cityName: zone.city.name,
     isServiceActive: zone.isServiceActive,
-    safetyScore,
+    finalSafetyScore: zone.finalSafetyScore,
+    baselineSafetyScore: zone.baselineSafetyScore,
+    liveSafetyScore: zone.liveSafetyScore,
+    scoreConfidence: zone.scoreConfidence,
+    scoreSource: zone.scoreSource,
+    scoreReferenceYear: zone.scoreReferenceYear,
     level,
     color,
     feedbackCount,

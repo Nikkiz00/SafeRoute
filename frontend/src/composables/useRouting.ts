@@ -21,11 +21,13 @@ let routePolyline: L.Polyline | null = null
 // ── Zone safety scoring ────────────────────────────────────────────────────
 
 function zoneScore(zone: Zone | null): number {
-  if (!zone || !zone.isServiceActive || zone.safetyScore === null) return 0
-  if (zone.safetyScore >= 75) return 2    // green: bonus
-  if (zone.safetyScore >= 50) return 0    // yellow: neutral
-  if (zone.safetyScore >= 25) return -3   // red: penalty
-  return -5                               // purple: heavy penalty
+  // Routing must weigh finalSafetyScore (baseline + live, confidence-blended) —
+  // never a raw/partial score — see docs/step-5-0-safety-data-baseline.md.
+  if (!zone || !zone.isServiceActive || zone.finalSafetyScore === null) return 0
+  if (zone.finalSafetyScore >= 75) return 2    // green: bonus
+  if (zone.finalSafetyScore >= 50) return 0    // yellow: neutral
+  if (zone.finalSafetyScore >= 25) return -3   // red: penalty
+  return -5                                     // purple: heavy penalty
 }
 
 function computeRouteSafetyScore(coords: [number, number][], zones: Zone[]): number {

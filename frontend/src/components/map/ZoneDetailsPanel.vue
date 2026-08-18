@@ -20,8 +20,8 @@ const showFeedback = ref(false)
 const showReport = ref(false)
 
 const scoreColor = computed(() => {
-  if (!props.zone || props.zone.safetyScore === null) return 'text-text-secondary'
-  const s = props.zone.safetyScore
+  if (!props.zone || props.zone.finalSafetyScore === null) return 'text-text-secondary'
+  const s = props.zone.finalSafetyScore
   if (s >= 75) return 'text-safety-green'
   if (s >= 50) return 'text-safety-yellow'
   if (s >= 25) return 'text-safety-red'
@@ -29,17 +29,30 @@ const scoreColor = computed(() => {
 })
 
 const scoreBarWidth = computed(() => {
-  if (!props.zone || props.zone.safetyScore === null) return '0%'
-  return `${props.zone.safetyScore}%`
+  if (!props.zone || props.zone.finalSafetyScore === null) return '0%'
+  return `${props.zone.finalSafetyScore}%`
 })
 
 const scoreBarColor = computed(() => {
-  if (!props.zone || props.zone.safetyScore === null) return 'bg-safety-gray'
-  const s = props.zone.safetyScore
+  if (!props.zone || props.zone.finalSafetyScore === null) return 'bg-safety-gray'
+  const s = props.zone.finalSafetyScore
   if (s >= 75) return 'bg-safety-green'
   if (s >= 50) return 'bg-safety-yellow'
   if (s >= 25) return 'bg-safety-red'
   return 'bg-safety-purple'
+})
+
+// Step 5.0: finalSafetyScore can come purely from the ISTAT statistical baseline
+// (scoreConfidence 0/null — no real feedback yet) or be blended with real community
+// signals (scoreConfidence > 0). The old copy always claimed "community feedback",
+// which became false once baseline-only scores existed — this keeps the disclaimer
+// accurate to scoreConfidence instead of a hardcoded claim.
+const provenanceDisclaimer = computed(() => {
+  const confidence = props.zone?.scoreConfidence ?? 0
+  if (confidence > 0) {
+    return 'I dati di sicurezza di questa zona combinano statistiche ufficiali (ISTAT) e feedback della community, e non sostituiscono il giudizio delle autorità. Usa sempre il tuo giudizio personale.'
+  }
+  return 'I dati di sicurezza di questa zona si basano su statistiche ufficiali (ISTAT), non ancora su feedback della community. Usa sempre il tuo giudizio personale.'
 })
 
 function handleFeedbackSubmitted(newScore: number | null) {
@@ -104,9 +117,9 @@ function handleReportSubmitted() {
         </div>
 
         <!-- Safety score -->
-        <div v-if="zone.safetyScore !== null" class="mb-6">
+        <div v-if="zone.finalSafetyScore !== null" class="mb-6">
           <div class="flex items-end gap-2 mb-2">
-            <span :class="['text-4xl font-bold font-display', scoreColor]">{{ zone.safetyScore }}</span>
+            <span :class="['text-4xl font-bold font-display', scoreColor]">{{ zone.finalSafetyScore }}</span>
             <span class="text-text-secondary dark:text-text-dark-secondary text-lg mb-1">/ 100</span>
           </div>
           <div class="h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
@@ -141,9 +154,9 @@ function handleReportSubmitted() {
           </div>
         </div>
 
-        <!-- Community data disclaimer -->
+        <!-- Data provenance disclaimer -->
         <p class="text-xs text-text-secondary dark:text-text-dark-secondary mt-3 mb-4 leading-relaxed">
-          I dati di sicurezza di questa zona si basano sui feedback della community e non sono verificati da autorita' ufficiali. Usa sempre il tuo giudizio personale.
+          {{ provenanceDisclaimer }}
         </p>
 
         <!-- Actions -->
@@ -159,13 +172,13 @@ function handleReportSubmitted() {
             @click="showFeedback = true"
             :class="[
               'flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-semibold text-sm transition-colors cursor-pointer',
-              zone.safetyScore === null
+              zone.finalSafetyScore === null
                 ? 'bg-brand-blue text-white hover:bg-blue-700'
                 : 'border-2 border-slate-200 dark:border-slate-700 text-text-secondary dark:text-text-dark-secondary hover:bg-slate-50 dark:hover:bg-slate-800'
             ]"
           >
             <MessageSquare :size="16" />
-            {{ zone.safetyScore === null ? 'Sii il primo!' : 'Valuta' }}
+            {{ zone.finalSafetyScore === null ? 'Sii il primo!' : 'Valuta' }}
           </button>
         </div>
       </div>

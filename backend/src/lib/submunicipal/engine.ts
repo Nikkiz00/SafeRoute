@@ -146,7 +146,7 @@ export async function importSubMunicipalSource(
         // accumulate, or an admin explicitly activates the zone (same policy as
         // the comune-level baseline zones from Step 4.0).
         isServiceActive: false,
-        safetyScore: null,
+        finalSafetyScore: null,
         bboxMinLng: bbox.minLng,
         bboxMinLat: bbox.minLat,
         bboxMaxLng: bbox.maxLng,

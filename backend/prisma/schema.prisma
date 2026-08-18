@@ -115,12 +115,36 @@ model Zone {
   type            String   @default("district")
   geometryJson    Json
   isServiceActive Boolean  @default(false)
-  safetyScore     Float?
   bboxMinLng      Float?
   bboxMinLat      Float?
   bboxMaxLng      Float?
   bboxMaxLat      Float?
   updatedAt       DateTime @updatedAt
+
+  // Safety score model (Step 5.0, docs/step-5-0-safety-data-baseline.md).
+  // baselineSafetyScore: official-statistics-derived score (0=riskiest, 100=safest),
+  //   copied from CrimeBaseline.baselineScore for the zone's territory. Null until the
+  //   crime-baseline importer has run for this zone's territory.
+  // liveSafetyScore: SafeRoute feedback/report-derived score, same scale — null until
+  //   at least 3 reliable live observations exist (see score.service.ts).
+  // finalSafetyScore: the score everything else (routing, map color, API) must read —
+  //   a confidence-weighted blend of the two (see combineFinalScore in score.service.ts).
+  //   Never null once a baseline exists; still null for zones with neither baseline nor
+  //   live data (renders as the white/gray "unknown" color, never an invented level).
+  baselineSafetyScore Float?
+  liveSafetyScore     Float?
+  finalSafetyScore    Float?
+  // 0 (score is pure territorial baseline) -> 1 (score is fully driven by SafeRoute's
+  // own live signals for this zone). See combineFinalScore's shrinkage formula.
+  scoreConfidence     Float?
+  // Free-text provenance, e.g. "istat-crime-comune-2024" / "istat-crime-province-2024"
+  // / "istat-crime-province-2024+live(n=12)" — always traces back to a real source, never blank when a score is set.
+  scoreSource         String?
+  // Most recent year of official crime data the baseline is derived from (e.g. 2024).
+  scoreReferenceYear  Int?
+  // Distinct from `updatedAt` (touched by ANY zone edit, e.g. a geometry reimport) —
+  // only touched when baselineSafetyScore/liveSafetyScore/finalSafetyScore change.
+  scoreUpdatedAt      DateTime?
 
   // Provenance for zones imported from an authoritative sub-municipal source
   // (see backend/src/lib/submunicipal/). Null for zones with no traceable
@@ -147,6 +171,39 @@ model Zone {
   @@index([source])
   @@index([cityIstatCode])
   @@map("zones")
+}
+
+// Territory-level official-crime-data baseline (Step 5.0). One row per (territoryType,
+// territoryCode, referenceYear) — kept versioned by year rather than overwritten, so a
+// re-import with a newer ISTAT release never destroys the previous year's baseline and
+// the pipeline stays debuggable (raw per-category rates are preserved alongside the
+// derived score). Zone.baselineSafetyScore is a denormalized copy of the latest year's
+// baselineScore here, joined by (territoryType, territoryCode) == the zone's own
+// cityIstatCode (territoryType='comune') or its province's NUTS3 code (territoryType='provincia').
+model CrimeBaseline {
+  id                  String   @id @default(cuid())
+  territoryType       String // 'comune' | 'provincia'
+  territoryCode       String // City.istatCode (comune) or ISTAT NUTS3 code (provincia, e.g. "ITC11")
+  territoryName       String
+  referenceYear       Int
+  // Per-category CRIMET (ISTAT-normalized rate per 100,000 residents), averaged over
+  // the smoothing window ending at referenceYear — e.g. {"THEFT": 2485.2, "ROBBER": 80.1, ...}.
+  // Kept raw (unweighted) for debuggability/re-derivation without re-fetching ISTAT.
+  rawCategoryRates    Json
+  // Category-weighted composite rate per 100,000 residents (see crime-categories.ts CATEGORY_WEIGHTS).
+  weightedRatePer100k Float
+  // 0-100 rank of this territory's weightedRatePer100k among all territories of the
+  // same territoryType imported in this run (0 = lowest rate nationally, 100 = highest).
+  percentileNational  Float
+  // 0 (riskiest observed) - 100 (safest observed), derived from percentileNational (see importer).
+  baselineScore       Float
+  source              String // e.g. "ISTAT DCCV_DELITTIPS 73_67_DF_DCCV_DELITTIPS_9 (CRIMET)"
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([territoryType, territoryCode, referenceYear])
+  @@index([territoryType, territoryCode])
+  @@map("crime_baselines")
 }
 
 model RouteSession {

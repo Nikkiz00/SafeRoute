@@ -253,7 +253,7 @@ async function upsertComune(feature: ComuneFeature, stats: ImportStats): Promise
       type: 'comune',
       geometryJson: feature.geometry,
       isServiceActive: false,
-      safetyScore: null,
+      finalSafetyScore: null,
       bboxMinLng: bbox.minLng,
       bboxMinLat: bbox.minLat,
       bboxMaxLng: bbox.maxLng,

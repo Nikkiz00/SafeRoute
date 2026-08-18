@@ -306,7 +306,7 @@ export async function listZonesAdmin(params: {
   return {
     items: zones.map(z => ({
       id: z.id, name: z.name, type: z.type,
-      isServiceActive: z.isServiceActive, safetyScore: z.safetyScore,
+      isServiceActive: z.isServiceActive, finalSafetyScore: z.finalSafetyScore,
       cityId: z.cityId, cityName: z.city.name,
       feedbackCount30d: feedbackMap.get(z.id) ?? 0,
       reportsCount30d: reportMap.get(z.id) ?? 0,

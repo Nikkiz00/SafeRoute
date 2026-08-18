@@ -82,6 +82,7 @@ async function applyIncorporation(prisma: PrismaClient, rule: IncorporationRule,
             bboxMinLat: bbox.minLat,
             bboxMaxLng: bbox.maxLng,
             bboxMaxLat: bbox.maxLat,
+            sourceStatus: 'municipality_fallback',
           },
         })
       : await tx.zone.create({
@@ -92,11 +93,12 @@ async function applyIncorporation(prisma: PrismaClient, rule: IncorporationRule,
             type: 'comune',
             geometryJson: unioned,
             isServiceActive: false,
-            safetyScore: null,
+            finalSafetyScore: null,
             bboxMinLng: bbox.minLng,
             bboxMinLat: bbox.minLat,
             bboxMaxLng: bbox.maxLng,
             bboxMaxLat: bbox.maxLat,
+            sourceStatus: 'municipality_fallback',
           },
         })
 
@@ -172,6 +174,7 @@ async function applyMerge(prisma: PrismaClient, rule: MergeRule, stats: Reconcil
             bboxMinLat: bbox.minLat,
             bboxMaxLng: bbox.maxLng,
             bboxMaxLat: bbox.maxLat,
+            sourceStatus: 'municipality_fallback',
           },
         })
       : await tx.zone.create({
@@ -182,11 +185,12 @@ async function applyMerge(prisma: PrismaClient, rule: MergeRule, stats: Reconcil
             type: 'comune',
             geometryJson: unioned,
             isServiceActive: false,
-            safetyScore: null,
+            finalSafetyScore: null,
             bboxMinLng: bbox.minLng,
             bboxMinLat: bbox.minLat,
             bboxMaxLng: bbox.maxLng,
             bboxMaxLat: bbox.maxLat,
+            sourceStatus: 'municipality_fallback',
           },
         })
 

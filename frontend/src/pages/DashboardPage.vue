@@ -112,14 +112,14 @@ function checkDangerZone(lat: number, lng: number) {
   if (!routeStore.isTracking) return
   const zonesStore = useZonesStore()
   for (const zone of zonesStore.zones) {
-    if (!zone.isServiceActive || zone.safetyScore === null) continue
+    if (!zone.isServiceActive || zone.finalSafetyScore === null) continue
     const inside = pointInGeometry(lat, lng, zone.geometry)
     if (inside && zone.id !== lastAlertedZoneId) {
-      if (zone.safetyScore < 25) {
+      if (zone.finalSafetyScore < 25) {
         lastAlertedZoneId = zone.id
         dangerZoneAlert.value = `Zona a rischio elevato: ${zone.name}. Mantieni alta l'attenzione.`
         setTimeout(() => { dangerZoneAlert.value = null }, 8000)
-      } else if (zone.safetyScore < 50) {
+      } else if (zone.finalSafetyScore < 50) {
         lastAlertedZoneId = zone.id
         dangerZoneAlert.value = `Zona con punteggio di sicurezza basso: ${zone.name}. Presta attenzione.`
         setTimeout(() => { dangerZoneAlert.value = null }, 6000)

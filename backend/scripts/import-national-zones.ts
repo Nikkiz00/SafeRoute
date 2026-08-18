@@ -13,13 +13,25 @@
  *   npm run zones:national -- --city=037006                   # single city
  *   npm run zones:national -- --sample --validate-only        # resolve + validate, write nothing
  *   npm run zones:national -- --sample --fresh                # force re-fetch OSM (ignore disk cache)
+ *   npm run zones:national -- --pending --limit=50            # next 50 non-official comuni (Step 4.5 batch primitive)
+ *   npm run zones:national -- --pending --limit=50 --offset=50 --validate-only   # dry-run the following 50
  *
  * Requires the parent comuni to already exist (`npm run import:istat`).
+ *
+ * --pending is the safe batch-expansion primitive for Step 4.5: it walks all comuni
+ * that do NOT have a hand-registered official source (i.e. everything except
+ * Torino/Milano/Roma), ordered deterministically by istatCode, and requires an
+ * explicit --limit so a run can never silently become a full-country import. Combine
+ * --limit/--offset to page through the country in monitored batches (e.g. capoluoghi
+ * di provincia/regione first, once an authoritative ISTAT "comune capoluogo" list is
+ * imported as real data — see docs/step-4-5-controlled-national-rollout.md §7 for why
+ * that isn't hardcoded here).
  */
 import { writeFile, mkdir } from 'node:fs/promises'
 import path from 'node:path'
 import { PrismaClient } from '@prisma/client'
 import { importSubMunicipalSource } from '../src/lib/submunicipal/engine.js'
+import { OFFICIAL_SOURCES_BY_ISTAT } from '../src/lib/submunicipal/registry.js'
 import { resolveZoneSource, type SourceResolution } from '../src/lib/submunicipal/source-resolver.js'
 import type { OsmValidationMetrics } from '../src/lib/submunicipal/osm/validate.js'
 
@@ -41,6 +53,7 @@ const SAMPLE_CITIES: { istatCode: string; label: string }[] = [
 
 interface CliArgs {
   cities: string[]
+  pending: { limit: number; offset: number } | null
   validateOnly: boolean
   fresh: boolean
 }
@@ -51,17 +64,54 @@ function parseArgs(): CliArgs {
   const fresh = args.includes('--fresh')
 
   if (args.includes('--sample')) {
-    return { cities: SAMPLE_CITIES.map((c) => c.istatCode), validateOnly, fresh }
+    return { cities: SAMPLE_CITIES.map((c) => c.istatCode), pending: null, validateOnly, fresh }
   }
   const cityArg = args.find((a) => a.startsWith('--city='))
   if (cityArg) {
-    return { cities: [cityArg.split('=')[1]], validateOnly, fresh }
+    return { cities: [cityArg.split('=')[1]], pending: null, validateOnly, fresh }
   }
   const citiesArg = args.find((a) => a.startsWith('--cities='))
   if (citiesArg) {
-    return { cities: citiesArg.split('=')[1].split(',').map((s) => s.trim()).filter(Boolean), validateOnly, fresh }
+    return {
+      cities: citiesArg.split('=')[1].split(',').map((s) => s.trim()).filter(Boolean),
+      pending: null,
+      validateOnly,
+      fresh,
+    }
   }
-  return { cities: [], validateOnly, fresh }
+  if (args.includes('--pending')) {
+    const limitArg = args.find((a) => a.startsWith('--limit='))
+    if (!limitArg) {
+      throw new Error('--pending requires an explicit --limit=N — unbounded national batches are not allowed (Step 4.5 safety rule).')
+    }
+    const offsetArg = args.find((a) => a.startsWith('--offset='))
+    return {
+      cities: [],
+      pending: { limit: Number(limitArg.split('=')[1]), offset: offsetArg ? Number(offsetArg.split('=')[1]) : 0 },
+      validateOnly,
+      fresh,
+    }
+  }
+  return { cities: [], pending: null, validateOnly, fresh }
+}
+
+/**
+ * The Step 4.5 batch-expansion primitive: every comune WITHOUT a hand-registered
+ * official source (i.e. all of Italy except Torino/Milano/Roma), ordered
+ * deterministically by istatCode, paged with limit/offset. Never touches
+ * OFFICIAL_SOURCES_BY_ISTAT cities, so Torino/Milano/Roma can never be pulled into
+ * an OSM batch by accident.
+ */
+async function resolvePendingCities(limit: number, offset: number): Promise<string[]> {
+  const officialCodes = Object.keys(OFFICIAL_SOURCES_BY_ISTAT)
+  const cities = await prisma.city.findMany({
+    where: { istatCode: { not: null, notIn: officialCodes } },
+    select: { istatCode: true },
+    orderBy: { istatCode: 'asc' },
+    skip: offset,
+    take: limit,
+  })
+  return cities.map((c) => c.istatCode as string)
 }
 
 interface CityRunResult {
@@ -135,14 +185,22 @@ function printRow(r: CityRunResult): void {
 }
 
 async function main(): Promise<void> {
-  const { cities, validateOnly, fresh } = parseArgs()
+  const { cities: explicitCities, pending, validateOnly, fresh } = parseArgs()
+
+  const cities = pending ? await resolvePendingCities(pending.limit, pending.offset) : explicitCities
 
   if (cities.length === 0) {
-    console.log('Usage: npm run zones:national -- --sample | --city=<istatCode> | --cities=<istat1,istat2,...> [--validate-only] [--fresh]')
-    process.exitCode = 1
+    console.log(
+      'Usage: npm run zones:national -- --sample | --city=<istatCode> | --cities=<istat1,istat2,...> | ' +
+        '--pending --limit=<N> [--offset=<N>] [--validate-only] [--fresh]'
+    )
+    process.exitCode = pending ? 0 : 1 // --pending with limit=N legitimately exhausting the list isn't an error
     return
   }
 
+  if (pending) {
+    console.log(`[national-zones] --pending batch: offset=${pending.offset} limit=${pending.limit} -> ${cities.length} comune(s) (${cities[0]}..${cities[cities.length - 1]})`)
+  }
   console.log(`[national-zones] resolving ${cities.length} comune(s)${validateOnly ? ' (validate-only, no writes)' : ''}...`)
 
   const results: CityRunResult[] = []
